@@ -1,1 +1,51 @@
-<!-- uploading source -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Course Marks</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="kicker">Course Marks</div>
+    <h1 id="heading">Sign in with your roll number</h1>
+
+    <div class="error-text" id="error"></div>
+
+    <!-- Step 1: roll number -->
+    <form id="roll-form">
+      <label for="roll_number">Roll number</label>
+      <input type="text" id="roll_number" name="roll_number" autocomplete="username" autofocus required>
+      <button type="submit" id="roll-submit">Continue</button>
+    </form>
+
+    <!-- Step 2: password (returning student) -->
+    <form id="login-form" style="display:none;">
+      <label id="login-label" for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <div class="row-actions">
+        <button type="submit">Sign in</button>
+        <button type="button" class="secondary" id="back-from-login">Back</button>
+      </div>
+    </form>
+
+    <!-- Step 2b: set password (first-time student) -->
+    <form id="setup-form" style="display:none;">
+      <p id="setup-help" style="max-width:none;">This is your first time signing in. Choose a password you'll remember — you'll use it every time after this.</p>
+      <label for="new_password">New password</label>
+      <input type="password" id="new_password" name="new_password" autocomplete="new-password" required>
+      <div class="field-help">At least 8 characters.</div>
+      <label for="confirm_password">Confirm password</label>
+      <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
+      <div class="row-actions">
+        <button type="submit">Set password and sign in</button>
+        <button type="button" class="secondary" id="back-from-setup">Back</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="/js/student-login.js"></script>
+</body>
+</html>
