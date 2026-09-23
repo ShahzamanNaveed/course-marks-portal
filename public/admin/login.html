@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Course Marks — TA sign in</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="kicker">Course Marks \u00b7 TA panel</div>
+    <h1>Sign in</h1>
+    <div class="error-text" id="error"></div>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+</div>
+<script src="/js/admin-login.js"></script>
+</body>
+</html>
