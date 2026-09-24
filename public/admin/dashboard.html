@@ -1,1 +1,142 @@
-<!-- uploading source -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Course Marks — TA panel</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar">
+    <h1>TA panel</h1>
+    <div class="who" id="who">Loading\u2026</div>
+    <ul class="nav-list">
+      <li><button data-panel="courses" class="active">Courses</button></li>
+      <li><button data-panel="roster">Roster</button></li>
+      <li><button data-panel="assessments">Assignments &amp; quizzes</button></li>
+      <li><button data-panel="marks">Enter marks</button></li>
+    </ul>
+    <button class="secondary" id="logout-btn">Sign out</button>
+  </div>
+  <div class="main">
+
+    <!-- Courses -->
+    <section id="panel-courses" class="panel">
+      <h2 style="font-size:1.2rem;">Courses</h2>
+      <div class="card">
+        <h2>Add a course</h2>
+        <form id="course-form" class="form-grid">
+          <div>
+            <label for="course_code">Code</label>
+            <input type="text" id="course_code" placeholder="DSA101" required>
+          </div>
+          <div>
+            <label for="course_name">Name</label>
+            <input type="text" id="course_name" placeholder="Data Structures and Algorithms" required>
+          </div>
+          <div><button type="submit">Add course</button></div>
+        </form>
+        <div class="status-line" id="course-status"></div>
+      </div>
+      <table id="courses-table">
+        <thead><tr><th>Code</th><th>Name</th><th class="score">Students</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Roster -->
+    <section id="panel-roster" class="panel" style="display:none;">
+      <h2 style="font-size:1.2rem;">Roster</h2>
+      <div class="select-row">
+        <label for="roster-course" style="margin:0;">Course</label>
+        <select id="roster-course"></select>
+      </div>
+
+      <div class="card">
+        <h2>Add / enroll students</h2>
+        <p>Paste one student per line, as <span class="roll">roll_number, name</span> (comma or tab separated). Existing roll numbers are just enrolled in this course, not overwritten \u2014 safe to re-paste.</p>
+        <textarea id="roster-text" placeholder="21CS001, Aisha Khan&#10;21CS002, Bilal Ahmed"></textarea>
+        <div class="row-actions" style="margin-top:12px;">
+          <button id="roster-submit">Add to roster</button>
+        </div>
+        <div class="status-line" id="roster-status"></div>
+      </div>
+
+      <table id="roster-table">
+        <thead><tr><th>Roll number</th><th>Name</th><th>Password set</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Assessments -->
+    <section id="panel-assessments" class="panel" style="display:none;">
+      <h2 style="font-size:1.2rem;">Assignments &amp; quizzes</h2>
+      <div class="select-row">
+        <label for="assessments-course" style="margin:0;">Course</label>
+        <select id="assessments-course"></select>
+      </div>
+
+      <div class="card">
+        <h2>Add an item</h2>
+        <form id="assessment-form" class="form-grid">
+          <div>
+            <label for="a_type">Type</label>
+            <select id="a_type">
+              <option value="assignment">Assignment</option>
+              <option value="quiz">Quiz</option>
+            </select>
+          </div>
+          <div>
+            <label for="a_title">Title</label>
+            <input type="text" id="a_title" placeholder="Assignment 1: Linked Lists" required>
+          </div>
+          <div>
+            <label for="a_max">Max score</label>
+            <input type="text" id="a_max" placeholder="100" required>
+          </div>
+          <div><button type="submit">Add</button></div>
+        </form>
+        <div class="status-line" id="assessment-status"></div>
+      </div>
+
+      <table id="assessments-table">
+        <thead><tr><th>Title</th><th>Type</th><th class="score">Max score</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Marks entry -->
+    <section id="panel-marks" class="panel" style="display:none;">
+      <h2 style="font-size:1.2rem;">Enter marks</h2>
+      <div class="select-row">
+        <label for="marks-course" style="margin:0;">Course</label>
+        <select id="marks-course"></select>
+        <label for="marks-assessment" style="margin:0;">Item</label>
+        <select id="marks-assessment"></select>
+      </div>
+
+      <div class="card" id="paste-fill-card" style="display:none;">
+        <h2>Paste to fill in bulk (optional)</h2>
+        <p>Paste rows as <span class="roll">roll_number, score</span> to fill the table below, then review and save.</p>
+        <textarea id="paste-fill-text" placeholder="21CS001, 88&#10;21CS002, 92"></textarea>
+        <div class="row-actions" style="margin-top:12px;">
+          <button type="button" id="paste-fill-btn" class="secondary">Fill table from paste</button>
+        </div>
+      </div>
+
+      <table id="marks-table" style="display:none;">
+        <thead><tr><th>Roll number</th><th>Name</th><th class="score">Score</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row-actions" style="margin-top:14px;">
+        <button id="marks-save-btn" style="display:none;">Save all</button>
+      </div>
+      <div class="status-line" id="marks-status"></div>
+    </section>
+
+  </div>
+</div>
+<script src="/js/admin-dashboard.js"></script>
+</body>
+</html>
