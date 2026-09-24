@@ -35,7 +35,7 @@ Student login is at `/`. The TA login is at `/admin/login.html`.
 
 ## University email verification
 
-Students must already exist in a course roster. Tally converts a roll number such as `F23-0871` to `f230871@cfd.nu.edu.pk`, emails a six-digit code, and requires that code before allowing first-time password setup or password recovery. Codes expire after 10 minutes, can be attempted at most five times, and cannot be resent for 60 seconds.
+Students must already exist in a course roster. Tally converts a roll number such as `23F-0871` (and also accepts `F23-0871`) to `f230871@cfd.nu.edu.pk`, emails a six-digit code, and requires that code before allowing first-time password setup or password recovery. Codes expire after 10 minutes, can be attempted at most five times, and cannot be resent for 60 seconds.
 
 For a dedicated Gmail sender:
 

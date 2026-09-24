@@ -25,13 +25,22 @@ function cleanRoll(roll) {
   return String(roll || '').trim().toUpperCase();
 }
 
+function rollVariants(rollNumber) {
+  const normalized = cleanRoll(rollNumber);
+  const match = normalized.match(/^F(\d{2})-(\d{4})$/) || normalized.match(/^(\d{2})F-(\d{4})$/);
+  if (!match) return [normalized, normalized];
+  return [`${match[1]}F-${match[2]}`, `F${match[1]}-${match[2]}`];
+}
+
 function rollToEmail(rollNumber) {
-  if (!/^F\d{2}-\d{4}$/.test(rollNumber)) {
-    const error = new Error('Use the roll-number format F23-0871.');
+  const normalized = String(rollNumber || '').trim().toUpperCase();
+  const match = normalized.match(/^F(\d{2})-(\d{4})$/) || normalized.match(/^(\d{2})F-(\d{4})$/);
+  if (!match) {
+    const error = new Error('Use the roll-number format 23F-0871.');
     error.status = 400;
     throw error;
   }
-  return `${rollNumber.replace('-', '').toLowerCase()}@cfd.nu.edu.pk`;
+  return `f${match[1]}${match[2]}@cfd.nu.edu.pk`;
 }
 
 function maskEmail(email) {
@@ -63,10 +72,14 @@ function safeHashEqual(left, right) {
 }
 
 async function findStudent(rollNumber, client = db) {
+  const [canonicalRoll, alternateRoll] = rollVariants(rollNumber);
   const result = await client.query(
     `SELECT roll_number, name, password_hash
-     FROM students WHERE UPPER(roll_number) = UPPER($1) LIMIT 1`,
-    [rollNumber]
+     FROM students
+     WHERE UPPER(roll_number) IN (UPPER($1), UPPER($2))
+     ORDER BY CASE WHEN UPPER(roll_number) = UPPER($1) THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [canonicalRoll, alternateRoll]
   );
   return result.rows[0] || null;
 }

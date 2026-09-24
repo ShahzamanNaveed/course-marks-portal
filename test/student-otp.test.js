@@ -5,13 +5,13 @@ const test = require('node:test');
 process.env.JWT_SECRET = 'local-test-jwt-secret-that-is-long-and-not-used-in-production';
 process.env.OTP_SECRET = 'local-test-otp-secret-that-is-also-not-used-in-production';
 
-const student = { roll_number: 'F23-0871', name: 'Test Student', password_hash: null };
+const student = { roll_number: '23F-0871', name: 'Test Student', password_hash: null };
 const otps = [];
 let deliveredCode = '';
 
 async function fakeQuery(sql, values = []) {
-  if (sql.includes('FROM students WHERE UPPER')) {
-    return { rows: values[0].toUpperCase() === student.roll_number ? [{ ...student }] : [], rowCount: 1 };
+  if (sql.includes('FROM students') && sql.includes('UPPER(roll_number)')) {
+    return { rows: values.some((value) => value.toUpperCase() === student.roll_number) ? [{ ...student }] : [], rowCount: 1 };
   }
   if (sql.includes('UPDATE students SET password_hash')) {
     if (values[1] !== student.roll_number) return { rows: [], rowCount: 0 };
@@ -129,7 +129,7 @@ test('first-time password setup requires and accepts a university-email OTP', as
   let response = await post('/api/auth/check-roll', { roll_number: 'f23-0871' });
   assert.equal(response.status, 200);
   const account = await response.json();
-  assert.equal(account.roll_number, 'F23-0871');
+  assert.equal(account.roll_number, '23F-0871');
   assert.equal(account.needs_password_setup, true);
   assert.match(account.email_hint, /^f23\*+@cfd\.nu\.edu\.pk$/);
 
@@ -137,14 +137,14 @@ test('first-time password setup requires and accepts a university-email OTP', as
   assert.equal(response.status, 401);
 
   response = await post('/api/auth/send-otp', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     purpose: 'password_setup',
   });
   assert.equal(response.status, 202);
   assert.match(deliveredCode, /^\d{6}$/);
 
   response = await post('/api/auth/verify-otp', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     purpose: 'password_setup',
     code: deliveredCode,
   });
@@ -158,13 +158,13 @@ test('first-time password setup requires and accepts a university-email OTP', as
 
 test('a returning student can reset a forgotten password with another OTP', async () => {
   let response = await post('/api/auth/send-otp', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     purpose: 'password_reset',
   });
   assert.equal(response.status, 202);
 
   response = await post('/api/auth/verify-otp', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     purpose: 'password_reset',
     code: deliveredCode,
   });
@@ -175,13 +175,13 @@ test('a returning student can reset a forgotten password with another OTP', asyn
   assert.equal(response.status, 200);
 
   response = await post('/api/auth/login', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     password: 'student-password',
   });
   assert.equal(response.status, 401);
 
   response = await post('/api/auth/login', {
-    roll_number: 'F23-0871',
+    roll_number: '23F-0871',
     password: 'new-student-password',
   });
   assert.equal(response.status, 200);
