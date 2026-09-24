@@ -11,7 +11,8 @@
     "start": "node server.js",
     "seed-admin": "node scripts/seed-admin.js",
     "migrate:sqlite": "node scripts/migrate-sqlite.js",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js",
+    "test": "node --test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -20,6 +21,7 @@
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.10",
     "pg": "^8.16.3"
   }
 }

@@ -159,6 +159,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 .link-reset:hover { color: var(--ink); }
 
+.auth-link {
+  display: inline-block;
+  margin-top: 16px;
+}
+
 /* ---------- App shell (dashboard pages) ---------- */
 
 .app-shell {

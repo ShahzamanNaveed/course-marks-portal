@@ -13,6 +13,7 @@ if (!JWT_SECRET || JWT_SECRET === 'change_this_to_a_long_random_string') {
 
 const STUDENT_COOKIE = 'student_session';
 const ADMIN_COOKIE = 'admin_session';
+const PASSWORD_SETUP_COOKIE = 'student_password_setup';
 const TOKEN_TTL = '12h';
 
 const cookieOptions = {
@@ -31,6 +32,34 @@ function issueStudentToken(res, rollNumber) {
 function issueAdminToken(res, adminId, username) {
   const token = jwt.sign({ type: 'admin', id: adminId, username }, JWT_SECRET, { expiresIn: TOKEN_TTL });
   res.cookie(ADMIN_COOKIE, token, cookieOptions);
+}
+
+function issuePasswordSetupToken(res, rollNumber, purpose) {
+  const token = jwt.sign(
+    { type: 'student_password_setup', roll_number: rollNumber, purpose },
+    JWT_SECRET,
+    { expiresIn: '10m' }
+  );
+  res.cookie(PASSWORD_SETUP_COOKIE, token, {
+    ...cookieOptions,
+    maxAge: 10 * 60 * 1000,
+  });
+}
+
+function readPasswordSetupToken(req) {
+  const token = req.cookies[PASSWORD_SETUP_COOKIE];
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.type !== 'student_password_setup') return null;
+    return { roll_number: payload.roll_number, purpose: payload.purpose };
+  } catch {
+    return null;
+  }
+}
+
+function clearPasswordSetupToken(res) {
+  res.clearCookie(PASSWORD_SETUP_COOKIE, { ...cookieOptions, maxAge: undefined });
 }
 
 function clearStudentToken(res) {
@@ -100,6 +129,9 @@ function asyncHandler(fn) {
 module.exports = {
   issueStudentToken,
   issueAdminToken,
+  issuePasswordSetupToken,
+  readPasswordSetupToken,
+  clearPasswordSetupToken,
   clearStudentToken,
   clearAdminToken,
   requireStudent,

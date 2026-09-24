@@ -12,6 +12,17 @@ CREATE TABLE IF NOT EXISTS students (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS student_email_otps (
+  id          BIGSERIAL PRIMARY KEY,
+  roll_number TEXT NOT NULL REFERENCES students(roll_number) ON DELETE CASCADE,
+  purpose     TEXT NOT NULL CHECK (purpose IN ('password_setup', 'password_reset')),
+  code_hash   TEXT NOT NULL,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS courses (
   id         SERIAL PRIMARY KEY,
   code       TEXT UNIQUE NOT NULL,
@@ -45,3 +56,5 @@ CREATE TABLE IF NOT EXISTS marks (
 CREATE INDEX IF NOT EXISTS idx_enrollments_course ON enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
 CREATE INDEX IF NOT EXISTS idx_marks_student ON marks(student_roll_number);
+CREATE INDEX IF NOT EXISTS idx_student_otps_lookup
+  ON student_email_otps(roll_number, purpose, created_at DESC);

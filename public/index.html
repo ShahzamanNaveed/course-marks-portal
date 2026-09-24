@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Course Marks</title>
+<title>Tally</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <div class="auth-shell">
   <div class="auth-card">
-    <div class="kicker">Course Marks</div>
+    <div class="kicker">Tally</div>
     <h1 id="heading">Sign in with your roll number</h1>
 
     <div class="error-text" id="error"></div>
@@ -29,11 +29,33 @@
         <button type="submit">Sign in</button>
         <button type="button" class="secondary" id="back-from-login">Back</button>
       </div>
+      <button type="button" class="link-reset auth-link" id="forgot-password">Forgot password?</button>
     </form>
 
-    <!-- Step 2b: set password (first-time student) -->
+    <!-- Step 2b: request university email verification -->
+    <form id="email-form" style="display:none;">
+      <p id="email-help" style="max-width:none;"></p>
+      <div class="row-actions">
+        <button type="submit" id="email-submit">Email verification code</button>
+        <button type="button" class="secondary" id="back-from-email">Back</button>
+      </div>
+    </form>
+
+    <!-- Step 3: verify emailed code -->
+    <form id="otp-form" style="display:none;">
+      <p id="otp-help" style="max-width:none;"></p>
+      <label for="otp_code">Six-digit code</label>
+      <input type="text" id="otp_code" name="otp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+      <div class="row-actions">
+        <button type="submit">Verify code</button>
+        <button type="button" class="secondary" id="back-from-otp">Back</button>
+      </div>
+      <button type="button" class="link-reset auth-link" id="resend-code">Send another code</button>
+    </form>
+
+    <!-- Step 4: set password after email verification -->
     <form id="setup-form" style="display:none;">
-      <p id="setup-help" style="max-width:none;">This is your first time signing in. Choose a password you'll remember — you'll use it every time after this.</p>
+      <p id="setup-help" style="max-width:none;">Your university email is verified. Choose a password you'll remember.</p>
       <label for="new_password">New password</label>
       <input type="password" id="new_password" name="new_password" autocomplete="new-password" required>
       <div class="field-help">At least 8 characters.</div>
@@ -41,7 +63,7 @@
       <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
       <div class="row-actions">
         <button type="submit">Set password and sign in</button>
-        <button type="button" class="secondary" id="back-from-setup">Back</button>
+        <button type="button" class="secondary" id="back-from-setup">Start over</button>
       </div>
     </form>
   </div>
