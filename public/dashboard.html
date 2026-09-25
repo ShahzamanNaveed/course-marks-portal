@@ -6,19 +6,38 @@
 <title>Tally — Dashboard</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
-<div class="app-shell">
-  <div class="sidebar">
-    <h1>Tally</h1>
-    <div class="who" id="who">Loading\u2026</div>
-    <ul class="nav-list" id="course-list"></ul>
-    <button class="secondary" id="logout-btn">Sign out</button>
-  </div>
-  <div class="main">
-    <div id="content">
-      <div class="empty-state">Loading your courses\u2026</div>
+<body class="student-dashboard">
+<div class="app-shell student-shell">
+  <aside class="sidebar student-sidebar">
+    <a class="student-brand" href="/dashboard.html" aria-label="Tally dashboard">
+      <span class="student-brand-mark" aria-hidden="true">T</span>
+      <span><strong>Tally</strong><small>Student portal</small></span>
+    </a>
+
+    <div class="student-profile">
+      <span class="student-avatar" id="student-avatar" aria-hidden="true">S</span>
+      <div><strong id="student-name">Loading\u2026</strong><span class="roll" id="student-roll"></span></div>
     </div>
-  </div>
+
+    <nav class="student-course-nav" aria-label="Enrolled courses">
+      <div class="nav-eyebrow">Your courses</div>
+      <ul class="nav-list" id="course-list"></ul>
+    </nav>
+
+    <button class="secondary student-signout" id="logout-btn" type="button">Sign out</button>
+  </aside>
+  <main class="main student-main">
+    <div id="content" aria-live="polite" aria-busy="true">
+      <div class="dashboard-loading" aria-label="Loading your courses">
+        <div class="skeleton skeleton-title"></div>
+        <div class="summary-grid">
+          <div class="skeleton skeleton-card"></div>
+          <div class="skeleton skeleton-card"></div>
+          <div class="skeleton skeleton-card"></div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
 <script src="/js/student-dashboard.js"></script>
 </body>
