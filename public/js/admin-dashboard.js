@@ -81,19 +81,36 @@ async function loadCourses() {
   fillCourseSelect($('roster-course'));
   fillCourseSelect($('assessments-course'));
   fillCourseSelect($('marks-course'));
-  if (courses.length) {
-    loadRoster();
-    loadAssessments();
-    onMarksCourseChange();
-  }
+  await Promise.all([loadRoster(), loadAssessments(), onMarksCourseChange()]);
 }
-
 function renderCoursesTable() {
   const tbody = document.querySelector('#courses-table tbody');
   tbody.innerHTML = courses
-    .map((c) => `<tr><td class="roll">${escapeHTML(c.code)}</td><td>${escapeHTML(c.name)}</td><td class="score">${escapeHTML(c.student_count)}</td></tr>`)
-    .join('') || '<tr><td colspan="3" class="empty-state">No courses yet.</td></tr>';
+    .map((c) => `<tr>
+      <td class="roll">${escapeHTML(c.code)}</td>
+      <td>${escapeHTML(c.name)}</td>
+      <td class="score">${escapeHTML(c.student_count)}</td>
+      <td><div class="table-actions"><button type="button" class="danger delete-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">Delete</button></div></td>
+    </tr>`)
+    .join('') || '<tr><td colspan="4" class="empty-state">No courses yet.</td></tr>';
 }
+
+document.querySelector('#courses-table tbody').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-course-btn');
+  if (!btn) return;
+  const courseId = btn.dataset.id;
+  const code = btn.dataset.code;
+  if (!confirm(`Delete course ${code}? This permanently deletes its assignments, quizzes, marks, and enrollments. Student accounts will remain.`)) return;
+  btn.disabled = true;
+  try {
+    await api(`/api/admin/courses/${courseId}`, { method: 'DELETE' });
+    $('course-status').textContent = `Course ${code} deleted.`;
+    await loadCourses();
+  } catch (err) {
+    $('course-status').textContent = err.message;
+    btn.disabled = false;
+  }
+});
 
 $('course-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -131,16 +148,35 @@ async function loadRoster() {
         <td class="roll">${escapeHTML(s.roll_number)}</td>
         <td>${escapeHTML(s.name)}</td>
         <td>${s.password_set ? 'Yes' : '<span class="hint">Not yet</span>'}</td>
-        <td>${s.password_set ? `<button type="button" class="secondary reset-pw-btn" data-roll="${escapeHTML(s.roll_number)}" style="padding:4px 10px; font-size:0.82rem;">Reset password</button>` : ''}</td>
+        <td><div class="table-actions">
+          ${s.password_set ? `<button type="button" class="secondary reset-pw-btn" data-roll="${escapeHTML(s.roll_number)}">Reset password</button>` : ''}
+          <button type="button" class="danger delete-student-btn" data-roll="${escapeHTML(s.roll_number)}" data-name="${escapeHTML(s.name)}">Delete</button>
+        </div></td>
       </tr>`
     )
     .join('') || '<tr><td colspan="4" class="empty-state">No students enrolled yet.</td></tr>';
 }
 
 document.querySelector('#roster-table tbody').addEventListener('click', async (e) => {
-  const btn = e.target.closest('.reset-pw-btn');
+  const btn = e.target.closest('.reset-pw-btn, .delete-student-btn');
   if (!btn) return;
   const roll = btn.dataset.roll;
+  if (btn.classList.contains('delete-student-btn')) {
+    const name = btn.dataset.name;
+    if (!confirm(`Delete ${roll} (${name})? This permanently removes the student, their enrollments, marks, password, and verification codes from every course.`)) return;
+    btn.disabled = true;
+    try {
+      await api(`/api/admin/students/${encodeURIComponent(roll)}`, { method: 'DELETE' });
+      $('roster-status').textContent = `Student ${roll} deleted.`;
+      await loadRoster();
+      await loadCourses();
+      await loadMarksGrid();
+    } catch (err) {
+      $('roster-status').textContent = err.message;
+      btn.disabled = false;
+    }
+    return;
+  }
   if (!confirm(`Clear the password for ${roll}? The student will be able to choose a new password.`)) return;
   try {
     await api(`/api/admin/students/${encodeURIComponent(roll)}/reset-password`, { method: 'POST' });
@@ -193,10 +229,36 @@ async function loadAssessments() {
   const items = await api(`/api/admin/courses/${courseId}/assessments`);
   tbody.innerHTML = items
     .map(
-      (a) => `<tr><td>${escapeHTML(a.title)}</td><td><span class="badge">${a.type === 'quiz' ? 'Quiz' : 'Assignment'}</span></td><td class="score">${escapeHTML(a.max_score)}</td></tr>`
+      (a) => `<tr>
+        <td>${escapeHTML(a.title)}</td>
+        <td><span class="badge">${a.type === 'quiz' ? 'Quiz' : 'Assignment'}</span></td>
+        <td class="score">${escapeHTML(a.max_score)}</td>
+        <td><div class="table-actions"><button type="button" class="danger delete-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}">Delete</button></div></td>
+      </tr>`
     )
-    .join('') || '<tr><td colspan="3" class="empty-state">No items yet.</td></tr>';
+    .join('') || '<tr><td colspan="4" class="empty-state">No items yet.</td></tr>';
 }
+
+document.querySelector('#assessments-table tbody').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-assessment-btn');
+  if (!btn) return;
+  const assessmentId = btn.dataset.id;
+  const label = btn.dataset.type === 'quiz' ? 'quiz' : 'assignment';
+  const title = btn.dataset.title;
+  if (!confirm(`Delete ${label} “${title}”? This permanently deletes all marks entered for it.`)) return;
+  btn.disabled = true;
+  try {
+    await api(`/api/admin/assessments/${assessmentId}`, { method: 'DELETE' });
+    $('assessment-status').textContent = `${label === 'quiz' ? 'Quiz' : 'Assignment'} “${title}” deleted.`;
+    await loadAssessments();
+    if ($('marks-course').value === $('assessments-course').value) {
+      await onMarksCourseChange();
+    }
+  } catch (err) {
+    $('assessment-status').textContent = err.message;
+    btn.disabled = false;
+  }
+});
 
 $('assessment-form').addEventListener('submit', async (e) => {
   e.preventDefault();

@@ -36,6 +36,18 @@ router.post('/courses', asyncHandler(async (req, res) => {
   res.status(201).json(result.rows[0]);
 }));
 
+router.delete('/courses/:courseId', asyncHandler(async (req, res) => {
+  const courseId = positiveId(req.params.courseId);
+  if (!courseId) return res.status(400).json({ error: 'Invalid course.' });
+
+  const result = await db.query(
+    'DELETE FROM courses WHERE id = $1 RETURNING id, code, name',
+    [courseId]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Course not found.' });
+  res.json({ ok: true, course: result.rows[0] });
+}));
+
 router.get('/courses/:courseId/students', asyncHandler(async (req, res) => {
   const courseId = positiveId(req.params.courseId);
   if (!courseId) return res.status(400).json({ error: 'Invalid course.' });
@@ -101,6 +113,18 @@ router.post('/students/:rollNumber/reset-password', asyncHandler(async (req, res
   res.json({ ok: true });
 }));
 
+router.delete('/students/:rollNumber', asyncHandler(async (req, res) => {
+  const rollNumber = String(req.params.rollNumber || '').trim();
+  if (!rollNumber) return res.status(400).json({ error: 'Invalid student.' });
+
+  const result = await db.query(
+    'DELETE FROM students WHERE roll_number = $1 RETURNING roll_number, name',
+    [rollNumber]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Student not found.' });
+  res.json({ ok: true, student: result.rows[0] });
+}));
+
 router.get('/courses/:courseId/assessments', asyncHandler(async (req, res) => {
   const courseId = positiveId(req.params.courseId);
   if (!courseId) return res.status(400).json({ error: 'Invalid course.' });
@@ -134,6 +158,18 @@ router.post('/courses/:courseId/assessments', asyncHandler(async (req, res) => {
     [courseId, type, title, maxScore]
   );
   res.status(201).json(result.rows[0]);
+}));
+
+router.delete('/assessments/:assessmentId', asyncHandler(async (req, res) => {
+  const assessmentId = positiveId(req.params.assessmentId);
+  if (!assessmentId) return res.status(400).json({ error: 'Invalid assessment.' });
+
+  const result = await db.query(
+    'DELETE FROM assessments WHERE id = $1 RETURNING id, course_id, type, title',
+    [assessmentId]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Assessment not found.' });
+  res.json({ ok: true, assessment: result.rows[0] });
 }));
 
 router.get('/assessments/:assessmentId/marks', asyncHandler(async (req, res) => {

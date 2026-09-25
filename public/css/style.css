@@ -133,9 +133,18 @@ button.secondary {
   border: 1px solid var(--border);
 }
 button.secondary:hover { background: var(--paper); color: var(--ink); }
+button.danger {
+  background: transparent;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
+button.danger:hover { background: var(--warn-soft); color: var(--warn); }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .row-actions { display: flex; gap: 10px; align-items: center; }
+.table-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.table-actions button { padding: 4px 10px; font-size: 0.82rem; }
+.actions-column { text-align: right; }
 
 .error-text {
   background: var(--warn-soft);
