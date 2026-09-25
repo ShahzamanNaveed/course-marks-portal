@@ -6,7 +6,7 @@
 <title>Tally — TA panel</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="admin-dashboard">
 <div class="app-shell">
   <div class="sidebar">
     <h1>TA panel</h1>
@@ -16,6 +16,8 @@
       <li><button data-panel="roster">Roster</button></li>
       <li><button data-panel="assessments">Assignments &amp; quizzes</button></li>
       <li><button data-panel="marks">Enter marks</button></li>
+      <li><button data-panel="notifications">Notifications</button></li>
+      <li><button data-panel="queries">Queries</button></li>
     </ul>
     <button class="secondary" id="logout-btn">Sign out</button>
   </div>
@@ -39,6 +41,15 @@
         </form>
         <div class="status-line" id="course-status"></div>
       </div>
+      <div class="card" id="course-edit-card" style="display:none;">
+        <h2>Edit course</h2>
+        <form id="course-edit-form" class="form-grid">
+          <input type="hidden" id="edit-course-id">
+          <div><label for="edit_course_code">Code</label><input type="text" id="edit_course_code" required></div>
+          <div><label for="edit_course_name">Name</label><input type="text" id="edit_course_name" required></div>
+          <div class="row-actions"><button type="submit">Save changes</button><button type="button" class="secondary" id="cancel-course-edit">Cancel</button></div>
+        </form>
+      </div>
       <table id="courses-table">
         <thead><tr><th>Code</th><th>Name</th><th class="score">Students</th><th class="actions-column">Actions</th></tr></thead>
         <tbody></tbody>
@@ -56,7 +67,7 @@
       <div class="card">
         <h2>Add / enroll students</h2>
         <p>Paste one student per line, as <span class="roll">roll_number, name</span> (comma or tab separated). Existing roll numbers are just enrolled in this course, not overwritten \u2014 safe to re-paste.</p>
-        <textarea id="roster-text" placeholder="21CS001, Aisha Khan&#10;21CS002, Bilal Ahmed"></textarea>
+        <textarea id="roster-text" placeholder="23F-0615, Aisha Khan&#10;24F-1023, Bilal Ahmed"></textarea>
         <div class="row-actions" style="margin-top:12px;">
           <button id="roster-submit">Add to roster</button>
         </div>
@@ -100,6 +111,17 @@
         <div class="status-line" id="assessment-status"></div>
       </div>
 
+      <div class="card" id="assessment-edit-card" style="display:none;">
+        <h2>Edit assessment</h2>
+        <form id="assessment-edit-form" class="form-grid">
+          <input type="hidden" id="edit-assessment-id">
+          <div><label for="edit_a_type">Type</label><select id="edit_a_type"><option value="assignment">Assignment</option><option value="quiz">Quiz</option></select></div>
+          <div><label for="edit_a_title">Title</label><input type="text" id="edit_a_title" required></div>
+          <div><label for="edit_a_max">Max score</label><input type="number" id="edit_a_max" min="0.01" step="any" required></div>
+          <div class="row-actions"><button type="submit">Save changes</button><button type="button" class="secondary" id="cancel-assessment-edit">Cancel</button></div>
+        </form>
+      </div>
+
       <table id="assessments-table">
         <thead><tr><th>Title</th><th>Type</th><th class="score">Max score</th><th class="actions-column">Actions</th></tr></thead>
         <tbody></tbody>
@@ -133,6 +155,19 @@
         <button id="marks-save-btn" style="display:none;">Save all</button>
       </div>
       <div class="status-line" id="marks-status"></div>
+    </section>
+
+    <section id="panel-notifications" class="panel" style="display:none;">
+      <h2 style="font-size:1.2rem;">Notifications</h2>
+      <p>Review mark changes before they are released to students.</p>
+      <div class="select-row"><label for="notification-filter" style="margin:0;">Status</label><select id="notification-filter"><option value="pending">Pending approval</option><option value="sent">Sent</option><option value="">All</option></select></div>
+      <table id="notifications-table"><thead><tr><th>Student</th><th>Course / assessment</th><th>Change</th><th>Status</th><th class="actions-column">Actions</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="panel-queries" class="panel" style="display:none;">
+      <h2 style="font-size:1.2rem;">Queries</h2>
+      <div class="select-row"><label for="query-status-filter" style="margin:0;">Status</label><select id="query-status-filter"><option value="">All</option><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>
+      <table id="queries-table"><thead><tr><th>Student</th><th>Course</th><th>Subject</th><th>Status</th><th class="actions-column">Actions</th></tr></thead><tbody></tbody></table>
     </section>
 
   </div>

@@ -6,6 +6,13 @@ function escapeHTML(value) {
   })[char]);
 }
 
+const ROLL_PATTERN = /^\d{2}[A-Z]-\d{4}$/;
+const NAME_PATTERN = /^[A-Za-z][A-Za-z .'-]*$/;
+
+function normalizeName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
 async function api(url, options = {}) {
   const res = await fetch(url, {
     credentials: 'same-origin',
@@ -39,7 +46,7 @@ function parseRows(text) {
 
 // ---------- Navigation ----------
 
-const panels = ['courses', 'roster', 'assessments', 'marks'];
+const panels = ['courses', 'roster', 'assessments', 'marks', 'notifications', 'queries'];
 document.querySelectorAll('.nav-list button').forEach((btn) => {
   btn.addEventListener('click', () => {
     const target = btn.dataset.panel;
@@ -60,6 +67,7 @@ $('logout-btn').addEventListener('click', async () => {
 let courses = [];
 
 function fillCourseSelect(select, { includeBlank = false } = {}) {
+  const previous = select.value;
   select.innerHTML = '';
   if (includeBlank || !courses.length) {
     const opt = document.createElement('option');
@@ -73,6 +81,7 @@ function fillCourseSelect(select, { includeBlank = false } = {}) {
     opt.textContent = `${c.code} \u2014 ${c.name}`;
     select.appendChild(opt);
   });
+  if (previous && courses.some((course) => String(course.id) === previous)) select.value = previous;
 }
 
 async function loadCourses() {
@@ -90,12 +99,21 @@ function renderCoursesTable() {
       <td class="roll">${escapeHTML(c.code)}</td>
       <td>${escapeHTML(c.name)}</td>
       <td class="score">${escapeHTML(c.student_count)}</td>
-      <td><div class="table-actions"><button type="button" class="danger delete-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">Delete</button></div></td>
+      <td><div class="table-actions"><button type="button" class="secondary edit-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}" data-name="${escapeHTML(c.name)}">Edit</button><button type="button" class="danger delete-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">Delete</button></div></td>
     </tr>`)
     .join('') || '<tr><td colspan="4" class="empty-state">No courses yet.</td></tr>';
 }
 
 document.querySelector('#courses-table tbody').addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('.edit-course-btn');
+  if (editBtn) {
+    $('edit-course-id').value = editBtn.dataset.id;
+    $('edit_course_code').value = editBtn.dataset.code;
+    $('edit_course_name').value = editBtn.dataset.name;
+    $('course-edit-card').style.display = 'block';
+    $('edit_course_name').focus();
+    return;
+  }
   const btn = e.target.closest('.delete-course-btn');
   if (!btn) return;
   const courseId = btn.dataset.id;
@@ -110,6 +128,17 @@ document.querySelector('#courses-table tbody').addEventListener('click', async (
     $('course-status').textContent = err.message;
     btn.disabled = false;
   }
+});
+
+$('cancel-course-edit').addEventListener('click', () => { $('course-edit-card').style.display = 'none'; });
+$('course-edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api(`/api/admin/courses/${$('edit-course-id').value}`, { method: 'PATCH', body: JSON.stringify({ code: $('edit_course_code').value.trim(), name: normalizeName($('edit_course_name').value) }) });
+    $('course-edit-card').style.display = 'none';
+    $('course-status').textContent = 'Course updated.';
+    await loadCourses();
+  } catch (err) { $('course-status').textContent = err.message; }
 });
 
 $('course-form').addEventListener('submit', async (e) => {
@@ -200,7 +229,12 @@ $('roster-submit').addEventListener('click', async () => {
     status.textContent = 'Paste at least one row as: roll_number, name';
     return;
   }
-  const students = rows.map(([roll_number, name]) => ({ roll_number, name }));
+  const students = rows.map(([roll_number, name]) => ({ roll_number: String(roll_number || '').trim().toUpperCase(), name: normalizeName(name) }));
+  const invalid = students.find((student) => !ROLL_PATTERN.test(student.roll_number) || !NAME_PATTERN.test(student.name));
+  if (invalid) {
+    status.textContent = `${invalid.roll_number || 'Student'}: use roll format 23F-0615 and a name beginning with a letter.`;
+    return;
+  }
   try {
     const result = await api(`/api/admin/courses/${courseId}/roster`, {
       method: 'POST',
@@ -233,13 +267,23 @@ async function loadAssessments() {
         <td>${escapeHTML(a.title)}</td>
         <td><span class="badge">${a.type === 'quiz' ? 'Quiz' : 'Assignment'}</span></td>
         <td class="score">${escapeHTML(a.max_score)}</td>
-        <td><div class="table-actions"><button type="button" class="danger delete-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}">Delete</button></div></td>
+        <td><div class="table-actions"><button type="button" class="secondary edit-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}" data-max="${escapeHTML(a.max_score)}">Edit</button><button type="button" class="danger delete-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}">Delete</button></div></td>
       </tr>`
     )
     .join('') || '<tr><td colspan="4" class="empty-state">No items yet.</td></tr>';
 }
 
 document.querySelector('#assessments-table tbody').addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('.edit-assessment-btn');
+  if (editBtn) {
+    $('edit-assessment-id').value = editBtn.dataset.id;
+    $('edit_a_type').value = editBtn.dataset.type;
+    $('edit_a_title').value = editBtn.dataset.title;
+    $('edit_a_max').value = editBtn.dataset.max;
+    $('assessment-edit-card').style.display = 'block';
+    $('edit_a_title').focus();
+    return;
+  }
   const btn = e.target.closest('.delete-assessment-btn');
   if (!btn) return;
   const assessmentId = btn.dataset.id;
@@ -258,6 +302,21 @@ document.querySelector('#assessments-table tbody').addEventListener('click', asy
     $('assessment-status').textContent = err.message;
     btn.disabled = false;
   }
+});
+
+$('cancel-assessment-edit').addEventListener('click', () => { $('assessment-edit-card').style.display = 'none'; });
+$('assessment-edit-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api(`/api/admin/assessments/${$('edit-assessment-id').value}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ type: $('edit_a_type').value, title: $('edit_a_title').value.trim(), max_score: $('edit_a_max').value }),
+    });
+    $('assessment-edit-card').style.display = 'none';
+    $('assessment-status').textContent = 'Assessment updated.';
+    await loadAssessments();
+    if ($('marks-course').value === $('assessments-course').value) await loadMarksAssessments();
+  } catch (err) { $('assessment-status').textContent = err.message; }
 });
 
 $('assessment-form').addEventListener('submit', async (e) => {
@@ -386,6 +445,47 @@ $('marks-save-btn').addEventListener('click', async () => {
   }
 });
 
+async function loadNotifications() {
+  const status = $('notification-filter').value;
+  const rows = await api(`/api/admin/notifications${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+  document.querySelector('#notifications-table tbody').innerHTML = rows.map((item) => `<tr>
+    <td><strong>${escapeHTML(item.student_roll_number)}</strong><br><span class="hint">${escapeHTML(item.student_name)}</span></td>
+    <td>${escapeHTML(item.course_code)}<br><span class="hint">${escapeHTML(item.assessment_title)}</span></td>
+    <td>${escapeHTML(item.message)}</td><td><span class="badge">${escapeHTML(item.status)}</span></td>
+    <td class="actions-column">${item.status === 'pending' ? `<button type="button" class="approve-notification-btn" data-id="${escapeHTML(item.id)}">Approve &amp; send</button>` : 'Sent'}</td>
+  </tr>`).join('') || '<tr><td colspan="5" class="empty-state">No notifications found.</td></tr>';
+}
+$('notification-filter').addEventListener('change', loadNotifications);
+document.querySelector('#notifications-table tbody').addEventListener('click', async (event) => {
+  const button = event.target.closest('.approve-notification-btn');
+  if (!button || !confirm('Send this mark update to the student?')) return;
+  button.disabled = true;
+  try { await api(`/api/admin/notifications/${button.dataset.id}/approve`, { method: 'POST' }); await loadNotifications(); }
+  catch (err) { button.disabled = false; alert(err.message); }
+});
+
+async function loadQueries() {
+  const status = $('query-status-filter').value;
+  const rows = await api(`/api/admin/queries${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+  document.querySelector('#queries-table tbody').innerHTML = rows.map((item) => `<tr>
+    <td><strong>${escapeHTML(item.student_roll_number)}</strong><br><span class="hint">${escapeHTML(item.student_name)}</span></td>
+    <td>${escapeHTML(item.course_code)}</td><td><strong>${escapeHTML(item.subject)}</strong><br><span class="hint">${escapeHTML(item.description)}</span></td>
+    <td><span class="badge">${escapeHTML(item.status)}</span></td>
+    <td class="actions-column"><button type="button" class="respond-query-btn" data-id="${escapeHTML(item.id)}" data-status="${escapeHTML(item.status)}" data-response="${escapeHTML(item.admin_response || '')}">Respond</button></td>
+  </tr>`).join('') || '<tr><td colspan="5" class="empty-state">No queries found.</td></tr>';
+}
+$('query-status-filter').addEventListener('change', loadQueries);
+document.querySelector('#queries-table tbody').addEventListener('click', async (event) => {
+  const button = event.target.closest('.respond-query-btn');
+  if (!button) return;
+  const response = prompt('Admin response:', button.dataset.response);
+  if (response === null) return;
+  const status = prompt('Status: pending, in_progress, resolved, or closed', button.dataset.status);
+  if (status === null) return;
+  try { await api(`/api/admin/queries/${button.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_response: response }) }); await loadQueries(); }
+  catch (err) { alert(err.message); }
+});
+
 // ---------- Init ----------
 
 (async function init() {
@@ -393,6 +493,7 @@ $('marks-save-btn').addEventListener('click', async () => {
     const me = await api('/api/admin/auth/me');
     $('who').textContent = me.username;
     await loadCourses();
+    await Promise.all([loadNotifications(), loadQueries()]);
   } catch (err) {
     // api() already redirects on 401; anything else, surface it
     if (err.message !== 'Not signed in.') {

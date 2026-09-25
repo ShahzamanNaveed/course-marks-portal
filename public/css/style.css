@@ -176,7 +176,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* ---------- App shell (dashboard pages) ---------- */
 
 .app-shell {
-  min-height: 100%;
+  min-height: 100vh;
   display: flex;
 }
 
@@ -188,6 +188,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   padding: 24px 18px;
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .sidebar h1 {
@@ -220,7 +223,23 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   flex: 1;
   padding: 32px 40px;
   max-width: 920px;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
+
+.admin-dashboard .sidebar {
+  color: #e5ece9;
+  background: #172a25;
+  border-right: 0;
+}
+.admin-dashboard .sidebar h1 { color: #fff; }
+.admin-dashboard .sidebar .who { color: #aabdb7; }
+.admin-dashboard .sidebar .nav-list button { color: #e5ece9; }
+.admin-dashboard .sidebar .nav-list button:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+.admin-dashboard .sidebar .nav-list button.active { color: #fff; background: rgba(216, 238, 230, 0.12); }
+.admin-dashboard .sidebar > .secondary { color: #c8d5d1; border-color: rgba(255, 255, 255, 0.16); }
+.admin-dashboard .sidebar > .secondary:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
 
 .top-bar {
   display: flex;
@@ -352,6 +371,32 @@ textarea {
   border-radius: 6px;
   background: var(--panel);
 }
+
+.dashboard-tools { margin-top: 18px; }
+.dashboard-tools button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 5px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.88rem;
+  text-align: left;
+}
+.dashboard-tools button:hover,
+.dashboard-tools button.active { background: var(--accent-soft); color: var(--accent-ink); }
+.nav-count { min-width: 1.5em; padding: 1px 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.72rem; text-align: center; }
+.notification-list, .query-list { display: grid; gap: 10px; }
+.notification-item, .query-item { padding: 17px 20px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.notification-item { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.notification-item.unread { border-left: 4px solid var(--accent); }
+.notification-item h3, .query-item h3 { margin: 7px 0 4px; font-size: 1rem; }
+.notification-item p, .query-item p { margin: 0 0 7px; }
+.notification-item small, .query-item small { color: var(--ink-soft); }
+.query-heading { display: flex; gap: 6px; flex-wrap: wrap; }
+.query-response { margin-top: 14px; padding: 12px; border-radius: 8px; background: var(--accent-soft); }
+.query-response p { margin: 4px 0 0; color: var(--accent-ink); }
 
 /* ---------- Student dashboard ---------- */
 
@@ -639,8 +684,8 @@ textarea {
 
 @media (max-width: 720px) {
   .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-  .main { padding: 24px 20px; }
+  .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border); }
+  .main { height: auto; overflow: visible; padding: 24px 20px; }
 
   .student-sidebar {
     position: relative;

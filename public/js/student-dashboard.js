@@ -5,6 +5,7 @@ const contentEl = $('content');
 let courses = [];
 let activeCourseId = null;
 let requestNumber = 0;
+let activeView = 'marks';
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({
@@ -27,6 +28,14 @@ async function getJSON(url) {
     return null;
   }
   const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
+}
+
+async function postJSON(url, body) {
+  const res = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { window.location.href = '/index.html'; return null; }
   if (!res.ok) throw new Error(data.error || 'Something went wrong.');
   return data;
 }
@@ -235,11 +244,41 @@ async function selectCourse(courseId) {
   }
 }
 
+const categoryLabels = { quiz: 'Quiz', assignment: 'Assignment', assessment_marks: 'Assessment marks', attendance: 'Attendance', other: 'Other course question' };
+
+async function renderNotifications() {
+  activeView = 'notifications';
+  contentEl.setAttribute('aria-busy', 'true');
+  try {
+    const rows = await getJSON('/api/student/notifications');
+    contentEl.removeAttribute('aria-busy');
+    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Updates</div><h1>Notifications</h1><p>Approved mark updates from your teaching team.</p></div></header><div class="notification-list">${rows.length ? rows.map((item) => `<article class="notification-item ${item.is_read ? '' : 'unread'}"><div><span class="badge">${escapeHTML(item.course_code)}</span><h3>${escapeHTML(item.assessment_title)}</h3><p>${escapeHTML(item.message)}</p><small>${escapeHTML(new Date(item.created_at).toLocaleString())}</small></div>${item.is_read ? '' : `<button type="button" class="secondary mark-read-btn" data-id="${escapeHTML(item.id)}">Mark read</button>`}</article>`).join('') : '<div class="student-empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No notifications</h2><p>Approved updates will appear here.</p></div>'}</div></section>`;
+    document.querySelectorAll('.mark-read-btn').forEach((button) => button.addEventListener('click', async () => { await postJSON(`/api/student/notifications/${button.dataset.id}/read`); await renderNotifications(); }));
+  } catch (error) { renderError(error.message); }
+}
+
+async function renderQueries() {
+  activeView = 'queries';
+  contentEl.setAttribute('aria-busy', 'true');
+  try {
+    const rows = await getJSON('/api/student/queries');
+    contentEl.removeAttribute('aria-busy');
+    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Support</div><h1>Course queries</h1><p>Ask about a quiz, assignment, marks, or another course concern.</p></div></header><div class="card"><h2>New query</h2><form id="query-form" class="form-grid"><div><label for="query-course">Course</label><select id="query-course" required>${courses.map((course) => `<option value="${escapeHTML(course.id)}">${escapeHTML(course.code)} — ${escapeHTML(course.name)}</option>`).join('')}</select></div><div><label for="query-category">Category</label><select id="query-category"><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="assessment_marks">Assessment marks</option><option value="attendance">Attendance</option><option value="other">Other</option></select></div><div><label for="query-subject">Subject</label><input id="query-subject" type="text" maxlength="200" required></div><div><label for="query-description">Description</label><textarea id="query-description" maxlength="4000" required></textarea></div><div><button type="submit">Submit query</button></div></form><div class="status-line" id="query-status"></div></div><div class="query-list">${rows.length ? rows.map((item) => `<article class="query-item"><div class="query-heading"><span class="badge">${escapeHTML(categoryLabels[item.category] || item.category)}</span><span class="badge">${escapeHTML(item.status)}</span></div><h3>${escapeHTML(item.subject)}</h3><p>${escapeHTML(item.description)}</p>${item.admin_response ? `<div class="query-response"><strong>Admin response</strong><p>${escapeHTML(item.admin_response)}</p></div>` : '<small>Awaiting a response</small>'}</article>`).join('') : '<div class="student-empty-state"><h2>No queries yet</h2><p>Your submitted questions will appear here.</p></div>'}</div></section>`;
+    $('query-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('query-status'); try { await postJSON('/api/student/queries', { course_id: $('query-course').value, category: $('query-category').value, subject: $('query-subject').value, description: $('query-description').value }); status.textContent = 'Query submitted.'; event.target.reset(); await renderQueries(); } catch (error) { status.textContent = error.message; } });
+  } catch (error) { renderError(error.message); }
+}
+
 courseListEl.addEventListener('click', (event) => {
   const button = event.target.closest('[data-course-id]');
   if (!button) return;
   selectCourse(Number(button.dataset.courseId));
 });
+
+document.querySelectorAll('.dashboard-tools [data-view]').forEach((button) => button.addEventListener('click', () => {
+  document.querySelectorAll('.dashboard-tools button').forEach((item) => item.classList.toggle('active', item === button));
+  if (button.dataset.view === 'notifications') renderNotifications();
+  if (button.dataset.view === 'queries') renderQueries();
+}));
 
 async function init() {
   try {
@@ -250,6 +289,8 @@ async function init() {
     $('student-avatar').textContent = String(me.name || 'S').trim().charAt(0).toUpperCase() || 'S';
 
     courses = (await getJSON('/api/student/courses')) || [];
+    const notifications = (await getJSON('/api/student/notifications')) || [];
+    $('notification-count').textContent = notifications.filter((item) => !item.is_read).length;
     if (!courses.length) {
       contentEl.removeAttribute('aria-busy');
       contentEl.innerHTML = `

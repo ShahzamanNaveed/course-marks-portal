@@ -53,8 +53,48 @@ CREATE TABLE IF NOT EXISTS marks (
   PRIMARY KEY (assessment_id, student_roll_number)
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id                    BIGSERIAL PRIMARY KEY,
+  student_roll_number   TEXT NOT NULL REFERENCES students(roll_number) ON DELETE CASCADE,
+  course_id             INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  assessment_id         INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+  old_score             DOUBLE PRECISION,
+  new_score             DOUBLE PRECISION,
+  message               TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent')),
+  read_at               TIMESTAMPTZ,
+  approved_by           INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  approved_at           TIMESTAMPTZ,
+  UNIQUE (student_roll_number, assessment_id, old_score, new_score)
+);
+
+CREATE TABLE IF NOT EXISTS queries (
+  id                    BIGSERIAL PRIMARY KEY,
+  student_roll_number   TEXT NOT NULL REFERENCES students(roll_number) ON DELETE CASCADE,
+  course_id             INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  category              TEXT NOT NULL CHECK (category IN ('quiz', 'assignment', 'assessment_marks', 'attendance', 'other')),
+  subject               TEXT NOT NULL,
+  description           TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'resolved', 'closed')),
+  admin_response        TEXT,
+  responded_by          INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_enrollments_course ON enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
 CREATE INDEX IF NOT EXISTS idx_marks_student ON marks(student_roll_number);
 CREATE INDEX IF NOT EXISTS idx_student_otps_lookup
   ON student_email_otps(roll_number, purpose, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_student
+  ON notifications(student_roll_number, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_status
+  ON notifications(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_queries_student
+  ON queries(student_roll_number, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_queries_filter
+  ON queries(course_id, status, category, created_at DESC);
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
