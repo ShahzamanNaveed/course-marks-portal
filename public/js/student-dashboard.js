@@ -52,6 +52,8 @@ function renderCourseList() {
       </li>
     `)
     .join('');
+  const mobileSelect = $('mobile-course-select');
+  mobileSelect.innerHTML = courses.map((course) => `<option value="${escapeHTML(course.id)}"${course.id === activeCourseId ? ' selected' : ''}>${escapeHTML(course.code)}</option>`).join('');
 }
 
 function loadingView() {
@@ -307,7 +309,7 @@ async function renderNotifications() {
   try {
     const rows = await getJSON('/api/student/notifications');
     contentEl.removeAttribute('aria-busy');
-    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Updates</div><h1>Notifications</h1><p>Approved mark updates and responses from your teaching team.</p></div></header><div class="notification-list">${rows.length ? rows.map((item) => `<article class="notification-item ${item.is_read ? '' : 'unread'}"><div><span class="badge">${escapeHTML(item.course_code)}</span><h3>${escapeHTML(item.assessment_title)}</h3><p>${escapeHTML(item.message)}</p><small>${escapeHTML(new Date(item.created_at).toLocaleString())}</small></div>${item.is_read ? '' : `<button type="button" class="secondary mark-read-btn" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.notification_type)}">Mark read</button>`}</article>`).join('') : '<div class="student-empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No notifications</h2><p>Approved updates and query responses will appear here.</p></div>'}</div></section>`;
+    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Updates</div><h1>Notifications</h1><p>Approved mark updates and responses from your teaching team.</p></div></header><div class="notification-list">${rows.length ? rows.map((item) => `<article class="notification-item ${item.is_read ? '' : 'unread'}"><div class="notification-content"><div class="notification-heading"><h3>${escapeHTML(item.assessment_title)}</h3><span class="badge">${escapeHTML(item.course_code)}</span></div><p>${escapeHTML(item.message)}</p><div class="notification-footer">${item.is_read ? '' : `<button type="button" class="secondary mark-read-btn" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.notification_type)}">Mark read</button>`}<small>${escapeHTML(new Date(item.created_at).toLocaleString())}</small></div></div></article>`).join('') : '<div class="student-empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No notifications</h2><p>Approved updates and query responses will appear here.</p></div>'}</div></section>`;
     document.querySelectorAll('.mark-read-btn').forEach((button) => button.addEventListener('click', async () => { await postJSON(`/api/student/notifications/${button.dataset.id}/read?type=${encodeURIComponent(button.dataset.type)}`); await renderNotifications(); }));
   } catch (error) { renderError(error.message); }
 }
@@ -351,11 +353,21 @@ courseListEl.addEventListener('click', (event) => {
   selectCourse(Number(button.dataset.courseId));
 });
 
-document.querySelectorAll('.dashboard-tools [data-view]').forEach((button) => button.addEventListener('click', () => {
+document.querySelectorAll('.dashboard-tools [data-view], .mobile-nav [data-view]').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.dashboard-tools button').forEach((item) => item.classList.toggle('active', item === button));
   if (button.dataset.view === 'notifications') renderNotifications();
   if (button.dataset.view === 'queries') renderQueries();
+  const menu = button.closest('.mobile-menu');
+  if (menu) menu.classList.remove('is-open');
 }));
+
+document.querySelectorAll('.mobile-menu-toggle').forEach((toggle) => toggle.addEventListener('click', () => {
+  const menu = document.getElementById(toggle.getAttribute('aria-controls'));
+  const isOpen = menu.classList.toggle('is-open');
+  toggle.setAttribute('aria-expanded', String(isOpen));
+}));
+
+$('mobile-course-select').addEventListener('change', () => selectCourse(Number($('mobile-course-select').value)));
 
 async function init() {
   try {
@@ -367,7 +379,9 @@ async function init() {
 
     courses = (await getJSON('/api/student/courses')) || [];
     const notifications = (await getJSON('/api/student/notifications')) || [];
-    $('notification-count').textContent = notifications.filter((item) => !item.is_read).length;
+    const unreadCount = notifications.filter((item) => !item.is_read).length;
+    $('notification-count').textContent = unreadCount;
+    $('mobile-notification-count').textContent = unreadCount;
     if (!courses.length) {
       contentEl.removeAttribute('aria-busy');
       contentEl.innerHTML = `
@@ -389,8 +403,7 @@ async function init() {
   }
 }
 
-$('logout-btn').addEventListener('click', async () => {
-  const button = $('logout-btn');
+document.querySelectorAll('[data-logout]').forEach((button) => button.addEventListener('click', async () => {
   button.disabled = true;
   button.textContent = 'Signing out…';
   try {
@@ -400,6 +413,6 @@ $('logout-btn').addEventListener('click', async () => {
     button.disabled = false;
     button.textContent = 'Sign out';
   }
-});
+}));
 
 init();

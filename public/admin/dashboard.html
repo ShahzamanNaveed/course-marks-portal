@@ -8,6 +8,11 @@
 </head>
 <body class="admin-dashboard">
 <div class="app-shell">
+  <nav class="mobile-nav admin-mobile-nav" aria-label="Admin navigation">
+    <strong>TA panel</strong>
+    <button type="button" class="mobile-menu-toggle" aria-label="Open menu" title="Open menu" aria-expanded="false" aria-controls="admin-mobile-menu">&#9776;</button>
+    <div class="mobile-menu" id="admin-mobile-menu"><div class="mobile-nav-actions"><button data-panel="courses">Courses</button><button data-panel="roster">Roster</button><button data-panel="assessments">Assessments</button><button data-panel="marks">Marks</button><button data-panel="notifications">Notifications <span class="admin-nav-count" id="mobile-admin-query-count" hidden>0</span></button><button data-panel="queries">Queries</button><button type="button" data-admin-logout>Sign out</button></div></div>
+  </nav>
   <div class="sidebar">
     <h1>TA panel</h1>
     <div class="who" id="who">Loading\u2026</div>
@@ -206,6 +211,6 @@
     </form>
   </section>
 </div>
-<script src="/js/admin-dashboard.js?v=8"></script>
+<script src="/js/admin-dashboard.js?v=11"></script>
 </body>
 </html>

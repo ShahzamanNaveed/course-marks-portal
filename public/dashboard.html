@@ -8,6 +8,12 @@
 </head>
 <body class="student-dashboard">
 <div class="app-shell student-shell">
+  <nav class="mobile-nav student-mobile-nav" aria-label="Student navigation">
+    <a class="student-brand" href="/dashboard.html" aria-label="Tally dashboard"><span class="student-brand-mark" aria-hidden="true">T</span><span><strong>Tally</strong><small>Student portal</small></span></a>
+    <button type="button" class="mobile-menu-toggle" aria-label="Open menu" title="Open menu" aria-expanded="false" aria-controls="student-mobile-menu">&#9776;</button>
+    <select id="mobile-course-select" aria-label="Choose course"><option value="">Choose course</option></select>
+    <div class="mobile-menu" id="student-mobile-menu"><div class="mobile-nav-actions"><button type="button" data-view="notifications" aria-label="Notifications">Notifications <span class="nav-count" id="mobile-notification-count">0</span></button><button type="button" data-view="queries">Queries</button><button type="button" data-logout>Sign out</button></div></div>
+  </nav>
   <aside class="sidebar student-sidebar">
     <a class="student-brand" href="/dashboard.html" aria-label="Tally dashboard">
       <span class="student-brand-mark" aria-hidden="true">T</span>
@@ -29,7 +35,7 @@
       <button type="button" data-view="queries">Queries</button>
     </nav>
 
-    <button class="secondary student-signout" id="logout-btn" type="button">Sign out</button>
+    <button class="secondary student-signout" id="logout-btn" data-logout type="button">Sign out</button>
   </aside>
   <main class="main student-main">
     <div id="content" aria-live="polite" aria-busy="true">
@@ -44,6 +50,6 @@
     </div>
   </main>
 </div>
-<script src="/js/student-dashboard.js?v=2"></script>
+<script src="/js/student-dashboard.js?v=5"></script>
 </body>
 </html>

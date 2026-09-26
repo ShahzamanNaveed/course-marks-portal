@@ -73,17 +73,28 @@ function parseRows(text) {
 // ---------- Navigation ----------
 
 const panels = ['courses', 'roster', 'assessments', 'marks', 'notifications', 'queries'];
-document.querySelectorAll('.nav-list button').forEach((btn) => {
+document.querySelectorAll('.nav-list button, .admin-mobile-nav button[data-panel]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const target = btn.dataset.panel;
     panels.forEach((p) => {
       $(`panel-${p}`).style.display = p === target ? 'block' : 'none';
     });
-    document.querySelectorAll('.nav-list button').forEach((b) => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.nav-list button, .admin-mobile-nav button[data-panel]').forEach((b) => b.classList.toggle('active', b === btn));
+    const menu = btn.closest('.mobile-menu');
+    if (menu) menu.classList.remove('is-open');
   });
 });
+document.querySelectorAll('.mobile-menu-toggle').forEach((toggle) => toggle.addEventListener('click', () => {
+  const menu = document.getElementById(toggle.getAttribute('aria-controls'));
+  const isOpen = menu.classList.toggle('is-open');
+  toggle.setAttribute('aria-expanded', String(isOpen));
+}));
 
 $('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/admin/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  window.location.href = '/admin/login.html';
+});
+document.querySelector('[data-admin-logout]').addEventListener('click', async () => {
   await fetch('/api/admin/auth/logout', { method: 'POST', credentials: 'same-origin' });
   window.location.href = '/admin/login.html';
 });
