@@ -6,6 +6,7 @@ let courses = [];
 let activeCourseId = null;
 let requestNumber = 0;
 let activeView = 'marks';
+const courseAssessments = new Map();
 
 function escapeHTML(value) {
   return String(value).replace(/[&<>'"]/g, (char) => ({
@@ -261,10 +262,32 @@ async function renderQueries() {
   activeView = 'queries';
   contentEl.setAttribute('aria-busy', 'true');
   try {
-    const rows = await getJSON('/api/student/queries');
+    const [rows] = await Promise.all([
+      getJSON('/api/student/queries'),
+      Promise.all(courses.map(async (course) => {
+        if (!courseAssessments.has(course.id)) {
+          const data = await getJSON(`/api/student/courses/${course.id}/marks`);
+          courseAssessments.set(course.id, data.items || []);
+        }
+        return course;
+      })),
+    ]);
     contentEl.removeAttribute('aria-busy');
-    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Support</div><h1>Course queries</h1><p>Ask about a quiz, assignment, marks, or another course concern.</p></div></header><div class="card"><h2>New query</h2><form id="query-form" class="form-grid"><div><label for="query-course">Course</label><select id="query-course" required>${courses.map((course) => `<option value="${escapeHTML(course.id)}">${escapeHTML(course.code)} — ${escapeHTML(course.name)}</option>`).join('')}</select></div><div><label for="query-category">Category</label><select id="query-category"><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="assessment_marks">Assessment marks</option><option value="attendance">Attendance</option><option value="other">Other</option></select></div><div><label for="query-subject">Subject</label><input id="query-subject" type="text" maxlength="200" required></div><div><label for="query-description">Description</label><textarea id="query-description" maxlength="4000" required></textarea></div><div><button type="submit">Submit query</button></div></form><div class="status-line" id="query-status"></div></div><div class="query-list">${rows.length ? rows.map((item) => `<article class="query-item"><div class="query-heading"><span class="badge">${escapeHTML(categoryLabels[item.category] || item.category)}</span><span class="badge">${escapeHTML(item.status)}</span></div><h3>${escapeHTML(item.subject)}</h3><p>${escapeHTML(item.description)}</p>${item.admin_response ? `<div class="query-response"><strong>Admin response</strong><p>${escapeHTML(item.admin_response)}</p></div>` : '<small>Awaiting a response</small>'}</article>`).join('') : '<div class="student-empty-state"><h2>No queries yet</h2><p>Your submitted questions will appear here.</p></div>'}</div></section>`;
-    $('query-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('query-status'); try { await postJSON('/api/student/queries', { course_id: $('query-course').value, category: $('query-category').value, subject: $('query-subject').value, description: $('query-description').value }); status.textContent = 'Query submitted.'; event.target.reset(); await renderQueries(); } catch (error) { status.textContent = error.message; } });
+    contentEl.innerHTML = `<section class="student-view"><header class="course-hero"><div><div class="course-eyebrow">Support</div><h1>Course queries</h1><p>Ask about a quiz, assignment, marks, or another course concern.</p></div></header><div class="card query-form-card"><div class="query-form-heading"><div><span class="section-eyebrow">Send a message</span><h2>Start a new query</h2></div><span class="query-step-count">4 steps</span></div><p class="query-form-intro">Choose the course and assessment, then tell us what you need help with.</p><form id="query-form" class="query-form"><div class="query-field"><span class="query-step">01</span><div><label for="query-course">Course</label><select id="query-course" required>${courses.map((course) => `<option value="${escapeHTML(course.id)}"${course.id === activeCourseId ? ' selected' : ''}>${escapeHTML(course.code)} — ${escapeHTML(course.name)}</option>`).join('')}</select></div></div><div class="query-field"><span class="query-step">02</span><div><label for="query-category">Assessment type</label><select id="query-category" required><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="assessment_marks">Assessment marks</option><option value="attendance">Attendance</option><option value="other">Other course question</option></select></div></div><div class="query-field"><span class="query-step">03</span><div><label for="query-subject">Which assessment?</label><select id="query-subject" required></select><input type="hidden" id="query-subject-value"></div></div><div class="query-field query-field-description"><span class="query-step">04</span><div><label for="query-description">Description</label><textarea id="query-description" maxlength="4000" placeholder="Describe your question or concern in detail..." required></textarea><small>Include any details that will help your teaching team respond.</small></div></div><div class="query-submit-row"><button type="submit">Submit query</button><span class="status-line" id="query-status" role="status"></span></div></form></div><div class="query-list">${rows.length ? rows.map((item) => `<article class="query-item"><div class="query-heading"><span class="badge">${escapeHTML(categoryLabels[item.category] || item.category)}</span><span class="badge">${escapeHTML(item.status)}</span></div><h3>${escapeHTML(item.subject)}</h3><p>${escapeHTML(item.description)}</p>${item.admin_response ? `<div class="query-response"><strong>Admin response</strong><p>${escapeHTML(item.admin_response)}</p></div>` : '<small>Awaiting a response</small>'}</article>`).join('') : '<div class="student-empty-state"><h2>No queries yet</h2><p>Your submitted questions will appear here.</p></div>'}</div></section>`;
+    const courseSelect = $('query-course');
+    const categorySelect = $('query-category');
+    const subjectSelect = $('query-subject');
+    const updateAssessments = () => {
+      const items = (courseAssessments.get(Number(courseSelect.value)) || []).filter((item) => item.type === categorySelect.value);
+      subjectSelect.innerHTML = items.length
+        ? items.map((item) => `<option value="${escapeHTML(item.title)}">${escapeHTML(item.title)}</option>`).join('')
+        : '<option value="General course question">General course question</option>';
+      subjectSelect.disabled = false;
+    };
+    courseSelect.addEventListener('change', updateAssessments);
+    categorySelect.addEventListener('change', updateAssessments);
+    updateAssessments();
+    $('query-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('query-status'); try { await postJSON('/api/student/queries', { course_id: courseSelect.value, category: categorySelect.value, subject: subjectSelect.value, description: $('query-description').value }); status.textContent = 'Query submitted.'; event.target.reset(); await renderQueries(); } catch (error) { status.textContent = error.message; } });
   } catch (error) { renderError(error.message); }
 }
 
