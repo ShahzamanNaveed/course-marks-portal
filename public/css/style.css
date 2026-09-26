@@ -649,6 +649,7 @@ textarea {
 .grading-rule-detail { display: grid; gap: 2px; padding-left: 18px; border-left: 1px solid #dce4df; color: var(--ink-soft); font-size: 0.78rem; }
 .grading-rule-detail select { min-width: 125px; margin-top: 3px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); color: var(--ink); font-family: var(--sans); font-size: 0.8rem; }
 .grading-rule-detail small { color: var(--accent); font-size: 0.72rem; }
+.grading-result { margin-top: 3px; color: var(--ink); font-family: var(--mono); font-size: 0.76rem; font-weight: 650; white-space: nowrap; }
 .mark-card.is-not-counted { opacity: 0.62; background: rgba(255, 255, 255, 0.66); }
 .mark-card.is-not-counted .mark-progress span { background: #aab5af; }
 

@@ -211,8 +211,8 @@ function renderMarks(course, items, choices = {}) {
 
       <div class="grading-rule" aria-label="Course grading rule">
         <div><span class="section-eyebrow">Absolute grading</span><strong>Quizzes ${escapeHTML(formatNumber(course.quiz_total_abs))} abs · Assignments ${escapeHTML(formatNumber(course.assignment_total_abs))} abs</strong></div>
-        <label class="grading-rule-detail" for="best-quizzes"><span>Count best quizzes</span><select id="best-quizzes">${bestOptions(quizBest.graded.length, quizChoice)}</select><small>${quizBest.selected.size} counted</small></label>
-        <label class="grading-rule-detail" for="best-assignments"><span>Count best assignments</span><select id="best-assignments">${bestOptions(assignmentBest.graded.length, assignmentChoice)}</select><small>${assignmentBest.selected.size} counted</small></label>
+        <label class="grading-rule-detail" for="best-quizzes"><span>Count best quizzes</span><select id="best-quizzes">${bestOptions(quizBest.graded.length, quizChoice)}</select><small>${quizBest.selected.size} counted</small><strong class="grading-result">Quiz result ${escapeHTML(formatNumber(quizResult.earned))} / ${escapeHTML(formatNumber(quizResult.available))} abs</strong></label>
+        <label class="grading-rule-detail" for="best-assignments"><span>Count best assignments</span><select id="best-assignments">${bestOptions(assignmentBest.graded.length, assignmentChoice)}</select><small>${assignmentBest.selected.size} counted</small><strong class="grading-result">Assignment result ${escapeHTML(formatNumber(assignmentResult.earned))} / ${escapeHTML(formatNumber(assignmentResult.available))} abs</strong></label>
       </div>
 
       <section class="marks-section" aria-labelledby="marks-heading">
