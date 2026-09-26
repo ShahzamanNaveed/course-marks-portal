@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS queries (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS query_notifications (
+  id                    BIGSERIAL PRIMARY KEY,
+  query_id              BIGINT NOT NULL UNIQUE REFERENCES queries(id) ON DELETE CASCADE,
+  student_roll_number   TEXT NOT NULL REFERENCES students(roll_number) ON DELETE CASCADE,
+  course_id             INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  message               TEXT NOT NULL,
+  read_at               TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_enrollments_course ON enrollments(course_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
 CREATE INDEX IF NOT EXISTS idx_marks_student ON marks(student_roll_number);
@@ -96,5 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_queries_student
   ON queries(student_roll_number, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_queries_filter
   ON queries(course_id, status, category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_query_notifications_student
+  ON query_notifications(student_roll_number, created_at DESC);
 
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;

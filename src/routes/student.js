@@ -56,14 +56,24 @@ router.get(
 
 router.get('/notifications', asyncHandler(async (req, res) => {
   const { rows } = await db.query(
-    `SELECT n.id, n.course_id, c.code AS course_code, c.name AS course_name,
-            a.title AS assessment_title, n.message, n.status, n.created_at,
-            (n.read_at IS NOT NULL) AS is_read
-     FROM notifications n
-     JOIN courses c ON c.id = n.course_id
-     JOIN assessments a ON a.id = n.assessment_id
-     WHERE n.student_roll_number = $1 AND n.status = 'sent'
-     ORDER BY n.created_at DESC`,
+    `SELECT * FROM (
+  SELECT n.id, 'mark' AS notification_type, n.course_id, c.code AS course_code, c.name AS course_name,
+    a.title AS assessment_title, n.message, n.status, n.created_at,
+    (n.read_at IS NOT NULL) AS is_read
+  FROM notifications n
+  JOIN courses c ON c.id = n.course_id
+  JOIN assessments a ON a.id = n.assessment_id
+  WHERE n.student_roll_number = $1 AND n.status = 'sent'
+  UNION ALL
+  SELECT qn.id, 'query' AS notification_type, qn.course_id, c.code AS course_code, c.name AS course_name,
+    q.subject AS assessment_title, qn.message, 'sent' AS status, qn.created_at,
+    (qn.read_at IS NOT NULL) AS is_read
+  FROM query_notifications qn
+  JOIN courses c ON c.id = qn.course_id
+  JOIN queries q ON q.id = qn.query_id
+  WHERE qn.student_roll_number = $1
+     ) AS student_notifications
+     ORDER BY created_at DESC`,
     [req.student.roll_number]
   );
   res.json(rows);
@@ -72,12 +82,29 @@ router.get('/notifications', asyncHandler(async (req, res) => {
 router.post('/notifications/:notificationId/read', asyncHandler(async (req, res) => {
   const notificationId = positiveId(req.params.notificationId);
   if (!notificationId) return res.status(400).json({ error: 'Invalid notification.' });
+  const notificationType = req.query.type;
+  if (notificationType === 'query') {
+    const queryResult = await db.query(
+      `UPDATE query_notifications SET read_at = NOW()
+       WHERE id = $1 AND student_roll_number = $2
+       RETURNING id`, [notificationId, req.student.roll_number]
+    );
+    if (!queryResult.rowCount) return res.status(404).json({ error: 'Notification not found.' });
+    return res.json({ ok: true });
+  }
   const result = await db.query(
     `UPDATE notifications SET read_at = NOW()
      WHERE id = $1 AND student_roll_number = $2 AND status = 'sent'
      RETURNING id`, [notificationId, req.student.roll_number]
   );
-  if (!result.rowCount) return res.status(404).json({ error: 'Notification not found.' });
+  if (!result.rowCount) {
+    const queryResult = await db.query(
+      `UPDATE query_notifications SET read_at = NOW()
+       WHERE id = $1 AND student_roll_number = $2
+       RETURNING id`, [notificationId, req.student.roll_number]
+    );
+    if (!queryResult.rowCount) return res.status(404).json({ error: 'Notification not found.' });
+  }
   res.json({ ok: true });
 }));
 

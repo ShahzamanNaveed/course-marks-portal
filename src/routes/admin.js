@@ -325,17 +325,34 @@ router.post('/assessments/:assessmentId/marks', asyncHandler(async (req, res) =>
 
 router.get('/notifications', asyncHandler(async (req, res) => {
   const status = ['pending', 'sent'].includes(req.query.status) ? req.query.status : null;
-  const values = status ? [status] : [];
   const { rows } = await db.query(
-    `SELECT n.id, n.student_roll_number, s.name AS student_name, c.code AS course_code,
-            a.title AS assessment_title, n.old_score, n.new_score, n.message,
-            n.status, n.created_at, n.approved_at
-     FROM notifications n
-     JOIN students s ON s.roll_number = n.student_roll_number
-     JOIN courses c ON c.id = n.course_id
-     JOIN assessments a ON a.id = n.assessment_id
-     ${status ? 'WHERE n.status = $1' : ''}
-     ORDER BY n.created_at DESC`, values
+    `SELECT * FROM (
+  SELECT n.id, 'mark' AS notification_type, n.id AS notification_id,
+    n.student_roll_number, s.name AS student_name, n.course_id,
+    c.code AS course_code, a.title AS assessment_title,
+    n.message, n.status, n.created_at, n.approved_at,
+    NULL::bigint AS query_id, NULL::text AS query_status,
+    NULL::text AS description, NULL::text AS admin_response
+  FROM notifications n
+  JOIN students s ON s.roll_number = n.student_roll_number
+  JOIN courses c ON c.id = n.course_id
+  JOIN assessments a ON a.id = n.assessment_id
+  WHERE ($1::text IS NULL OR n.status = $1)
+  UNION ALL
+  SELECT q.id, 'query' AS notification_type, q.id AS notification_id,
+    q.student_roll_number, s.name AS student_name, q.course_id,
+    c.code AS course_code, q.subject AS assessment_title,
+    'Student Query' AS message,
+    CASE WHEN q.status = 'pending' THEN 'pending' ELSE 'sent' END AS status,
+    q.created_at, NULL::timestamptz AS approved_at,
+    q.id AS query_id, q.status AS query_status,
+    q.description, q.admin_response
+  FROM queries q
+  JOIN students s ON s.roll_number = q.student_roll_number
+  JOIN courses c ON c.id = q.course_id
+  WHERE ($1::text IS NULL OR CASE WHEN q.status = 'pending' THEN 'pending' ELSE 'sent' END = $1)
+     ) AS unified_notifications
+     ORDER BY created_at DESC`, [status]
   );
   res.json(rows);
 }));
@@ -378,11 +395,43 @@ router.patch('/queries/:queryId', asyncHandler(async (req, res) => {
   if (!Number.isSafeInteger(queryId) || queryId <= 0 || !QUERY_STATUSES.has(status)) return res.status(400).json({ error: 'Invalid query status.' });
   const result = await db.query(
     `UPDATE queries SET status = $1, admin_response = $2, responded_by = $3, updated_at = NOW()
-     WHERE id = $4 RETURNING id, status, admin_response, updated_at`,
+     WHERE id = $4 RETURNING id, student_roll_number, course_id, subject, status, admin_response, updated_at`,
     [status, response || null, req.admin.id, queryId]
   );
   if (!result.rowCount) return res.status(404).json({ error: 'Query not found.' });
+  const query = result.rows[0];
+  if (response) {
+    await db.query(
+      `INSERT INTO query_notifications (query_id, student_roll_number, course_id, message)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (query_id) DO UPDATE SET message = EXCLUDED.message, read_at = NULL, created_at = NOW()`,
+      [query.id, query.student_roll_number, query.course_id, `Your query about “${query.subject}” has received a response from the teaching team.`]
+    );
+  }
   res.json(result.rows[0]);
+}));
+
+router.delete('/queries/:queryId', asyncHandler(async (req, res) => {
+  const queryId = Number(req.params.queryId);
+  if (!Number.isSafeInteger(queryId) || queryId <= 0) return res.status(400).json({ error: 'Invalid query.' });
+  const result = await db.withTransaction(async (client) => {
+    await client.query('DELETE FROM query_notifications WHERE query_id = $1', [queryId]);
+    return client.query('DELETE FROM queries WHERE id = $1 RETURNING id', [queryId]);
+  });
+  if (!result.rowCount) return res.status(404).json({ error: 'Query not found.' });
+  res.json({ ok: true });
+}));
+
+router.delete('/queries/:queryId/response', asyncHandler(async (req, res) => {
+  const queryId = Number(req.params.queryId);
+  if (!Number.isSafeInteger(queryId) || queryId <= 0) return res.status(400).json({ error: 'Invalid query.' });
+  const result = await db.query(
+    `UPDATE queries SET status = 'pending', admin_response = NULL, responded_by = NULL, updated_at = NOW()
+     WHERE id = $1 RETURNING id`, [queryId]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: 'Query not found.' });
+  await db.query('DELETE FROM query_notifications WHERE query_id = $1', [queryId]);
+  res.json({ ok: true });
 }));
 
 module.exports = router;

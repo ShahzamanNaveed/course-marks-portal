@@ -28,6 +28,32 @@ async function api(url, options = {}) {
   return data;
 }
 
+let confirmResolver = null;
+
+function closeConfirmDialog(result = false) {
+  $('confirm-modal').hidden = true;
+  document.body.classList.remove('modal-open');
+  if (confirmResolver) {
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    resolve(result);
+  }
+}
+
+function confirmAction(title, message, confirmLabel = 'Confirm') {
+  if (confirmResolver) closeConfirmDialog(false);
+  $('confirm-title').textContent = title;
+  $('confirm-message').textContent = message;
+  $('confirm-action').textContent = confirmLabel;
+  $('confirm-modal').hidden = false;
+  document.body.classList.add('modal-open');
+  $('confirm-action').focus();
+  return new Promise((resolve) => { confirmResolver = resolve; });
+}
+
+document.querySelectorAll('[data-close-confirm]').forEach((element) => element.addEventListener('click', () => closeConfirmDialog(false)));
+$('confirm-action').addEventListener('click', () => closeConfirmDialog(true));
+
 // Parses pasted text into rows of [col1, col2], accepting commas or tabs as
 // the separator and ignoring a header row if the first cell looks like a label.
 function parseRows(text) {
@@ -99,7 +125,7 @@ function renderCoursesTable() {
       <td class="roll">${escapeHTML(c.code)}</td>
       <td>${escapeHTML(c.name)}</td>
       <td class="score">${escapeHTML(c.student_count)}</td>
-      <td><div class="table-actions"><button type="button" class="secondary edit-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}" data-name="${escapeHTML(c.name)}">Edit</button><button type="button" class="danger delete-course-btn" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">Delete</button></div></td>
+      <td><div class="table-actions"><button type="button" class="secondary icon-action edit-course-btn" aria-label="Edit course ${escapeHTML(c.code)}" title="Edit course" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}" data-name="${escapeHTML(c.name)}">&#9998;</button><button type="button" class="danger icon-action delete-course-btn" aria-label="Delete course ${escapeHTML(c.code)}" title="Delete course" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">&#128465;</button></div></td>
     </tr>`)
     .join('') || '<tr><td colspan="4" class="empty-state">No courses yet.</td></tr>';
 }
@@ -118,7 +144,7 @@ document.querySelector('#courses-table tbody').addEventListener('click', async (
   if (!btn) return;
   const courseId = btn.dataset.id;
   const code = btn.dataset.code;
-  if (!confirm(`Delete course ${code}? This permanently deletes its assignments, quizzes, marks, and enrollments. Student accounts will remain.`)) return;
+  if (!await confirmAction('Delete course?', `This will permanently delete ${code}, including its assignments, quizzes, marks, and enrollments. Student accounts will remain.`, 'Delete course')) return;
   btn.disabled = true;
   try {
     await api(`/api/admin/courses/${courseId}`, { method: 'DELETE' });
@@ -178,8 +204,8 @@ async function loadRoster() {
         <td>${escapeHTML(s.name)}</td>
         <td>${s.password_set ? 'Yes' : '<span class="hint">Not yet</span>'}</td>
         <td><div class="table-actions">
-          ${s.password_set ? `<button type="button" class="secondary reset-pw-btn" data-roll="${escapeHTML(s.roll_number)}">Reset password</button>` : ''}
-          <button type="button" class="danger delete-student-btn" data-roll="${escapeHTML(s.roll_number)}" data-name="${escapeHTML(s.name)}">Delete</button>
+          ${s.password_set ? `<button type="button" class="secondary reset-pw-btn" aria-label="Reset password for ${escapeHTML(s.roll_number)}" title="Reset password" data-roll="${escapeHTML(s.roll_number)}">&#8635;</button>` : ''}
+          <button type="button" class="danger icon-action delete-student-btn" aria-label="Delete student ${escapeHTML(s.roll_number)}" title="Delete student" data-roll="${escapeHTML(s.roll_number)}" data-name="${escapeHTML(s.name)}">&#128465;</button>
         </div></td>
       </tr>`
     )
@@ -192,7 +218,7 @@ document.querySelector('#roster-table tbody').addEventListener('click', async (e
   const roll = btn.dataset.roll;
   if (btn.classList.contains('delete-student-btn')) {
     const name = btn.dataset.name;
-    if (!confirm(`Delete ${roll} (${name})? This permanently removes the student, their enrollments, marks, password, and verification codes from every course.`)) return;
+    if (!await confirmAction('Delete student?', `This will permanently remove ${roll} (${name}), including enrollments, marks, password, and verification codes.`, 'Delete student')) return;
     btn.disabled = true;
     try {
       await api(`/api/admin/students/${encodeURIComponent(roll)}`, { method: 'DELETE' });
@@ -206,7 +232,7 @@ document.querySelector('#roster-table tbody').addEventListener('click', async (e
     }
     return;
   }
-  if (!confirm(`Clear the password for ${roll}? The student will be able to choose a new password.`)) return;
+  if (!await confirmAction('Reset student password?', `${roll} will be able to choose a new password after the current password is cleared.`, 'Reset password')) return;
   try {
     await api(`/api/admin/students/${encodeURIComponent(roll)}/reset-password`, { method: 'POST' });
     $('roster-status').textContent = `Password cleared for ${roll}. The student can now choose a new password.`;
@@ -267,7 +293,7 @@ async function loadAssessments() {
         <td>${escapeHTML(a.title)}</td>
         <td><span class="badge">${a.type === 'quiz' ? 'Quiz' : 'Assignment'}</span></td>
         <td class="score">${escapeHTML(a.max_score)}</td>
-        <td><div class="table-actions"><button type="button" class="secondary edit-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}" data-max="${escapeHTML(a.max_score)}">Edit</button><button type="button" class="danger delete-assessment-btn" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}">Delete</button></div></td>
+        <td><div class="table-actions"><button type="button" class="secondary icon-action edit-assessment-btn" aria-label="Edit ${escapeHTML(a.title)}" title="Edit assessment" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}" data-max="${escapeHTML(a.max_score)}">&#9998;</button><button type="button" class="danger icon-action delete-assessment-btn" aria-label="Delete ${escapeHTML(a.title)}" title="Delete assessment" data-id="${escapeHTML(a.id)}" data-title="${escapeHTML(a.title)}" data-type="${escapeHTML(a.type)}">&#128465;</button></div></td>
       </tr>`
     )
     .join('') || '<tr><td colspan="4" class="empty-state">No items yet.</td></tr>';
@@ -289,7 +315,7 @@ document.querySelector('#assessments-table tbody').addEventListener('click', asy
   const assessmentId = btn.dataset.id;
   const label = btn.dataset.type === 'quiz' ? 'quiz' : 'assignment';
   const title = btn.dataset.title;
-  if (!confirm(`Delete ${label} “${title}”? This permanently deletes all marks entered for it.`)) return;
+  if (!await confirmAction(`Delete ${label}?`, `This will permanently delete “${title}” and all marks entered for it.`, `Delete ${label}`)) return;
   btn.disabled = true;
   try {
     await api(`/api/admin/assessments/${assessmentId}`, { method: 'DELETE' });
@@ -447,21 +473,48 @@ $('marks-save-btn').addEventListener('click', async () => {
 
 async function loadNotifications() {
   const status = $('notification-filter').value;
-  const rows = await api(`/api/admin/notifications${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+  const [rows, allRows] = await Promise.all([
+    api(`/api/admin/notifications${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    api('/api/admin/notifications'),
+  ]);
+  const pendingCount = allRows.filter((item) => item.status === 'pending').length;
+  const doneCount = allRows.filter((item) => item.status === 'sent').length;
+  const queryCount = $('admin-query-count');
+  queryCount.textContent = pendingCount;
+  queryCount.hidden = pendingCount === 0;
+  $('notification-summary').textContent = `${pendingCount} pending · ${doneCount} done`;
   document.querySelector('#notifications-table tbody').innerHTML = rows.map((item) => `<tr>
     <td><strong>${escapeHTML(item.student_roll_number)}</strong><br><span class="hint">${escapeHTML(item.student_name)}</span></td>
     <td>${escapeHTML(item.course_code)}<br><span class="hint">${escapeHTML(item.assessment_title)}</span></td>
-    <td>${escapeHTML(item.message)}</td><td><span class="badge">${escapeHTML(item.status)}</span></td>
-    <td class="actions-column">${item.status === 'pending' ? `<button type="button" class="approve-notification-btn" data-id="${escapeHTML(item.id)}">Approve &amp; send</button>` : 'Sent'}</td>
+    <td>${escapeHTML(item.message)}</td><td><span class="badge">${item.status === 'pending' ? 'Pending' : 'Done'}</span></td>
+    <td class="actions-column">${item.notification_type === 'mark'
+      ? (item.status === 'pending' ? `<button type="button" class="approve-notification-btn" data-id="${escapeHTML(item.notification_id)}">Approve &amp; send</button>` : 'Sent')
+      : `<div class="table-actions"><button type="button" class="secondary view-query-notification-btn" data-id="${escapeHTML(item.query_id)}" data-status="${escapeHTML(item.query_status)}" data-subject="${escapeHTML(item.assessment_title)}" data-course="${escapeHTML(item.course_code)}" data-description="${escapeHTML(item.description || '')}" data-response="${escapeHTML(item.admin_response || '')}">View</button>${item.status === 'pending' ? `<button type="button" class="query-done-btn" data-id="${escapeHTML(item.query_id)}" data-response="${escapeHTML(item.admin_response || '')}">Mark as done</button>` : 'Done'}</div>`}</td>
   </tr>`).join('') || '<tr><td colspan="5" class="empty-state">No notifications found.</td></tr>';
 }
 $('notification-filter').addEventListener('change', loadNotifications);
 document.querySelector('#notifications-table tbody').addEventListener('click', async (event) => {
   const button = event.target.closest('.approve-notification-btn');
-  if (!button || !confirm('Send this mark update to the student?')) return;
-  button.disabled = true;
-  try { await api(`/api/admin/notifications/${button.dataset.id}/approve`, { method: 'POST' }); await loadNotifications(); }
-  catch (err) { button.disabled = false; alert(err.message); }
+  const queryButton = event.target.closest('.view-query-notification-btn');
+  const doneButton = event.target.closest('.query-done-btn');
+  if (button) {
+    if (!await confirmAction('Approve mark update?', 'This will send the mark change notification to the student.', 'Approve & send')) return;
+    button.disabled = true;
+    try { await api(`/api/admin/notifications/${button.dataset.id}/approve`, { method: 'POST' }); await loadNotifications(); }
+    catch (err) { button.disabled = false; alert(err.message); }
+    return;
+  }
+  if (queryButton) {
+    openQueryEditor(queryButton);
+    return;
+  }
+  if (doneButton) {
+    doneButton.disabled = true;
+    try {
+      await api(`/api/admin/queries/${doneButton.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'resolved', admin_response: doneButton.dataset.response }) });
+      await Promise.all([loadNotifications(), loadQueries()]);
+    } catch (err) { doneButton.disabled = false; alert(err.message); }
+  }
 });
 
 async function loadQueries() {
@@ -471,19 +524,53 @@ async function loadQueries() {
     <td><strong>${escapeHTML(item.student_roll_number)}</strong><br><span class="hint">${escapeHTML(item.student_name)}</span></td>
     <td>${escapeHTML(item.course_code)}</td><td><strong>${escapeHTML(item.subject)}</strong><br><span class="hint">${escapeHTML(item.description)}</span></td>
     <td><span class="badge">${escapeHTML(item.status)}</span></td>
-    <td class="actions-column"><button type="button" class="respond-query-btn" data-id="${escapeHTML(item.id)}" data-status="${escapeHTML(item.status)}" data-response="${escapeHTML(item.admin_response || '')}">Respond</button></td>
+    <td class="actions-column"><div class="table-actions">${item.admin_response ? `<button type="button" class="secondary icon-action edit-query-response-btn" aria-label="Edit response for ${escapeHTML(item.subject)}" title="Edit response" data-id="${escapeHTML(item.id)}" data-status="${escapeHTML(item.status)}" data-subject="${escapeHTML(item.subject)}" data-course="${escapeHTML(item.course_code)}" data-description="${escapeHTML(item.description)}" data-response="${escapeHTML(item.admin_response)}">&#9998;</button><button type="button" class="danger icon-action delete-query-btn" aria-label="Delete query ${escapeHTML(item.subject)}" title="Delete query" data-id="${escapeHTML(item.id)}">&#128465;</button>` : `<button type="button" class="respond-query-btn" data-id="${escapeHTML(item.id)}" data-status="${escapeHTML(item.status)}" data-subject="${escapeHTML(item.subject)}" data-course="${escapeHTML(item.course_code)}" data-description="${escapeHTML(item.description)}" data-response="">Respond</button>`}</div></td>
   </tr>`).join('') || '<tr><td colspan="5" class="empty-state">No queries found.</td></tr>';
 }
 $('query-status-filter').addEventListener('change', loadQueries);
+function openQueryEditor(button) {
+  $('query-response-modal').hidden = false;
+  document.body.classList.add('modal-open');
+  $('query-editor-title').textContent = button.dataset.subject;
+  $('query-editor-context').textContent = `${button.dataset.course} · ${button.dataset.description}`;
+  $('query-response-status').value = button.dataset.status;
+  $('query-response-text').value = button.dataset.response;
+  $('query-response-status-line').textContent = '';
+  $('query-response-text').focus();
+  $('query-response-form').dataset.id = button.dataset.id;
+}
 document.querySelector('#queries-table tbody').addEventListener('click', async (event) => {
-  const button = event.target.closest('.respond-query-btn');
-  if (!button) return;
-  const response = prompt('Admin response:', button.dataset.response);
-  if (response === null) return;
-  const status = prompt('Status: pending, in_progress, resolved, or closed', button.dataset.status);
-  if (status === null) return;
-  try { await api(`/api/admin/queries/${button.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ status, admin_response: response }) }); await loadQueries(); }
-  catch (err) { alert(err.message); }
+  const responseButton = event.target.closest('.respond-query-btn, .edit-query-response-btn');
+  const deleteButton = event.target.closest('.delete-query-btn');
+  if (responseButton) openQueryEditor(responseButton);
+  if (deleteButton) {
+    if (!await confirmAction('Delete query?', 'This will permanently remove the query, its response, and its notifications.', 'Delete query')) return;
+    deleteButton.disabled = true;
+    try { await api(`/api/admin/queries/${deleteButton.dataset.id}`, { method: 'DELETE' }); await Promise.all([loadQueries(), loadNotifications()]); }
+    catch (err) { deleteButton.disabled = false; alert(err.message); }
+  }
+});
+function closeQueryEditor() {
+  $('query-response-modal').hidden = true;
+  document.body.classList.remove('modal-open');
+}
+document.querySelectorAll('[data-close-query-modal]').forEach((element) => element.addEventListener('click', closeQueryEditor));
+$('query-response-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const saveButton = $('save-query-response');
+  saveButton.disabled = true;
+  try {
+    await api(`/api/admin/queries/${event.target.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ status: $('query-response-status').value, admin_response: $('query-response-text').value }) });
+    closeQueryEditor();
+    await Promise.all([loadQueries(), loadNotifications()]);
+  } catch (err) {
+    $('query-response-status-line').textContent = err.message;
+  } finally { saveButton.disabled = false; }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (!$('confirm-modal').hidden) closeConfirmDialog(false);
+  else if (!$('query-response-modal').hidden) closeQueryEditor();
 });
 
 // ---------- Init ----------
