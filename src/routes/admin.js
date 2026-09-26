@@ -27,9 +27,60 @@ function cleanCourseName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
+function absoluteSettings(body) {
+  const total = (value, fallback) => value === '' || value === null || value === undefined ? fallback : Number(value);
+  const settings = {
+    quizTotalAbs: total(body.quiz_total_abs, 10),
+    assignmentTotalAbs: total(body.assignment_total_abs, 10),
+    labTotalAbs: total(body.lab_total_abs, 0),
+    cpTotalAbs: total(body.cp_total_abs, 0),
+    otherTotalAbs: total(body.other_total_abs, 0),
+  };
+  if (Object.values(settings).some((value) => !Number.isFinite(value) || value < 0)) return null;
+  return settings;
+}
+
+function assessmentTotals(value) {
+  if (!Array.isArray(value)) return {};
+  const totals = {};
+  for (const entry of value) {
+    if (!['assignment', 'quiz', 'lab', 'cp', 'other'].includes(entry.type)) continue;
+    const total = Number(entry.total_abs);
+    if (Number.isFinite(total) && total >= 0) totals[entry.type] = total;
+  }
+  return totals;
+}
+
+function settingsFromAssessmentTotals(body) {
+  const totals = assessmentTotals(body.assessment_totals);
+  return absoluteSettings({
+    quiz_total_abs: totals.quiz ?? 0,
+    assignment_total_abs: totals.assignment ?? 0,
+    lab_total_abs: totals.lab ?? 0,
+    cp_total_abs: totals.cp ?? 0,
+    other_total_abs: totals.other ?? 0,
+  });
+}
+
 router.get('/courses', asyncHandler(async (req, res) => {
   const { rows } = await db.query(
-    `SELECT c.id, c.code, c.name, COUNT(e.student_roll_number)::int AS student_count
+        `SELECT c.id, c.code, c.name,
+          CASE WHEN EXISTS (SELECT 1 FROM assessments ax WHERE ax.course_id = c.id)
+            THEN COALESCE((SELECT SUM(a.absolute_score) FROM assessments a WHERE a.course_id = c.id AND a.type = 'quiz'), 0)
+            ELSE c.quiz_total_abs END AS quiz_total_abs,
+          CASE WHEN EXISTS (SELECT 1 FROM assessments ax WHERE ax.course_id = c.id)
+            THEN COALESCE((SELECT SUM(a.absolute_score) FROM assessments a WHERE a.course_id = c.id AND a.type = 'assignment'), 0)
+            ELSE c.assignment_total_abs END AS assignment_total_abs,
+          CASE WHEN EXISTS (SELECT 1 FROM assessments ax WHERE ax.course_id = c.id)
+            THEN COALESCE((SELECT SUM(a.absolute_score) FROM assessments a WHERE a.course_id = c.id AND a.type = 'lab'), 0)
+            ELSE c.lab_total_abs END AS lab_total_abs,
+          CASE WHEN EXISTS (SELECT 1 FROM assessments ax WHERE ax.course_id = c.id)
+            THEN COALESCE((SELECT SUM(a.absolute_score) FROM assessments a WHERE a.course_id = c.id AND a.type = 'cp'), 0)
+            ELSE c.cp_total_abs END AS cp_total_abs,
+          CASE WHEN EXISTS (SELECT 1 FROM assessments ax WHERE ax.course_id = c.id)
+            THEN COALESCE((SELECT SUM(a.absolute_score) FROM assessments a WHERE a.course_id = c.id AND a.type = 'other'), 0)
+            ELSE c.other_total_abs END AS other_total_abs,
+          COUNT(e.student_roll_number)::int AS student_count
      FROM courses c
      LEFT JOIN enrollments e ON e.course_id = c.id
      GROUP BY c.id
@@ -41,31 +92,50 @@ router.get('/courses', asyncHandler(async (req, res) => {
 router.post('/courses', asyncHandler(async (req, res) => {
   const code = String(req.body.code || '').trim();
   const name = cleanCourseName(req.body.name);
+  const settings = Array.isArray(req.body.assessment_totals)
+    ? settingsFromAssessmentTotals(req.body) : absoluteSettings(req.body);
   if (!code || !name) return res.status(400).json({ error: 'Course code and name are required.' });
+  if (!settings) return res.status(400).json({ error: 'Quiz and assignment absolute totals must be positive numbers.' });
   if (code.length > 50 || name.length > 200) return res.status(400).json({ error: 'Course code or name is too long.' });
 
-  const result = await db.query(
-    `INSERT INTO courses (code, name) VALUES ($1, $2)
-     ON CONFLICT (code) DO NOTHING RETURNING id, code, name`,
-    [code, name]
-  );
-  if (!result.rowCount) return res.status(409).json({ error: 'A course with that code already exists.' });
-  res.status(201).json(result.rows[0]);
+  let course;
+  await db.withTransaction(async (client) => {
+    const result = await client.query(
+      `INSERT INTO courses (code, name, quiz_total_abs, assignment_total_abs, lab_total_abs, cp_total_abs, other_total_abs)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (code) DO NOTHING RETURNING id, code, name`,
+      [code, name, settings.quizTotalAbs, settings.assignmentTotalAbs, settings.labTotalAbs, settings.cpTotalAbs, settings.otherTotalAbs]
+    );
+    if (!result.rowCount) throw Object.assign(new Error('A course with that code already exists.'), { status: 409 });
+    course = result.rows[0];
+  });
+  res.status(201).json(course);
 }));
 
 router.patch('/courses/:courseId', asyncHandler(async (req, res) => {
   const courseId = positiveId(req.params.courseId);
   const code = String(req.body.code || '').trim();
   const name = cleanCourseName(req.body.name);
+  const currentCourse = await db.maybeOne('SELECT quiz_total_abs, assignment_total_abs, lab_total_abs, cp_total_abs, other_total_abs FROM courses WHERE id = $1', [courseId]);
+  const requestedTotals = Array.isArray(req.body.assessment_totals) ? assessmentTotals(req.body.assessment_totals) : {};
+  const settings = absoluteSettings({
+    lab_total_abs: requestedTotals.lab ?? req.body.lab_total_abs ?? currentCourse?.lab_total_abs,
+    cp_total_abs: requestedTotals.cp ?? req.body.cp_total_abs ?? currentCourse?.cp_total_abs,
+    other_total_abs: requestedTotals.other ?? req.body.other_total_abs ?? currentCourse?.other_total_abs,
+    quiz_total_abs: requestedTotals.quiz ?? req.body.quiz_total_abs ?? currentCourse?.quiz_total_abs,
+    assignment_total_abs: requestedTotals.assignment ?? req.body.assignment_total_abs ?? currentCourse?.assignment_total_abs,
+  });
   if (!courseId || !code || !name) return res.status(400).json({ error: 'Valid course code and name are required.' });
+  if (!settings) return res.status(400).json({ error: 'Quiz and assignment absolute totals must be positive numbers.' });
   if (code.length > 50 || name.length > 200) return res.status(400).json({ error: 'Course code or name is too long.' });
   if (await db.maybeOne('SELECT 1 FROM courses WHERE LOWER(code) = LOWER($1) AND id <> $2', [code, courseId])) {
     return res.status(409).json({ error: 'A course with that code already exists.' });
   }
   const result = await db.query(
-    `UPDATE courses SET code = $1, name = $2 WHERE id = $3
-     RETURNING id, code, name`,
-    [code, name, courseId]
+    `UPDATE courses SET code = $1, name = $2, quiz_total_abs = $3, assignment_total_abs = $4,
+       lab_total_abs = $5, cp_total_abs = $6, other_total_abs = $7
+     WHERE id = $8 RETURNING id, code, name, quiz_total_abs, assignment_total_abs, lab_total_abs, cp_total_abs, other_total_abs`,
+     [code, name, settings.quizTotalAbs, settings.assignmentTotalAbs, settings.labTotalAbs, settings.cpTotalAbs, settings.otherTotalAbs, courseId]
   );
   if (!result.rowCount) return res.status(404).json({ error: 'Course not found.' });
   res.json(result.rows[0]);
@@ -164,7 +234,7 @@ router.get('/courses/:courseId/assessments', asyncHandler(async (req, res) => {
   const courseId = positiveId(req.params.courseId);
   if (!courseId) return res.status(400).json({ error: 'Invalid course.' });
   const { rows } = await db.query(
-    `SELECT id, type, title, max_score FROM assessments
+    `SELECT id, type, title, max_score, absolute_score FROM assessments
      WHERE course_id = $1 ORDER BY created_at, id`,
     [courseId]
   );
@@ -178,19 +248,20 @@ router.post('/courses/:courseId/assessments', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Course not found.' });
   }
 
-  const type = ['assignment', 'quiz'].includes(req.body.type) ? req.body.type : null;
+  const type = ['assignment', 'quiz', 'lab', 'cp', 'other'].includes(req.body.type) ? req.body.type : null;
   const title = String(req.body.title || '').trim();
   const maxScore = Number(req.body.max_score);
-  if (!type) return res.status(400).json({ error: 'Type must be "assignment" or "quiz".' });
+  const absoluteScore = Number(req.body.absolute_score ?? 2);
+  if (!type) return res.status(400).json({ error: 'Select a valid assessment type.' });
   if (!title || title.length > 200) return res.status(400).json({ error: 'A title under 200 characters is required.' });
-  if (!Number.isFinite(maxScore) || maxScore <= 0) {
-    return res.status(400).json({ error: 'Max score must be a positive number.' });
+  if (!Number.isFinite(maxScore) || maxScore <= 0 || !Number.isFinite(absoluteScore) || absoluteScore <= 0) {
+    return res.status(400).json({ error: 'Max score and absolute value must be positive numbers.' });
   }
 
   const result = await db.query(
-    `INSERT INTO assessments (course_id, type, title, max_score)
-     VALUES ($1, $2, $3, $4) RETURNING id, type, title, max_score`,
-    [courseId, type, title, maxScore]
+    `INSERT INTO assessments (course_id, type, title, max_score, absolute_score)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id, type, title, max_score, absolute_score`,
+    [courseId, type, title, maxScore, absoluteScore]
   );
   res.status(201).json(result.rows[0]);
 }));
@@ -198,19 +269,20 @@ router.post('/courses/:courseId/assessments', asyncHandler(async (req, res) => {
 router.patch('/assessments/:assessmentId', asyncHandler(async (req, res) => {
   const assessmentId = positiveId(req.params.assessmentId);
   if (!assessmentId) return res.status(400).json({ error: 'Invalid assessment.' });
-  const type = ['assignment', 'quiz'].includes(req.body.type) ? req.body.type : null;
+  const type = ['assignment', 'quiz', 'lab', 'cp', 'other'].includes(req.body.type) ? req.body.type : null;
   const title = String(req.body.title || '').trim();
   const maxScore = Number(req.body.max_score);
-  if (!type || !title || title.length > 200 || !Number.isFinite(maxScore) || maxScore <= 0) {
-    return res.status(400).json({ error: 'Provide a valid type, title, and positive max score.' });
+  const absoluteScore = Number(req.body.absolute_score ?? 2);
+  if (!type || !title || title.length > 200 || !Number.isFinite(maxScore) || maxScore <= 0 || !Number.isFinite(absoluteScore) || absoluteScore <= 0) {
+    return res.status(400).json({ error: 'Provide a valid type, title, max score, and absolute value.' });
   }
   if (await db.maybeOne('SELECT 1 FROM marks WHERE assessment_id = $1 AND score > $2', [assessmentId, maxScore])) {
     return res.status(409).json({ error: 'Max score cannot be lower than an existing student mark.' });
   }
   const result = await db.query(
-    `UPDATE assessments SET type = $1, title = $2, max_score = $3
-     WHERE id = $4 RETURNING id, course_id, type, title, max_score`,
-    [type, title, maxScore, assessmentId]
+    `UPDATE assessments SET type = $1, title = $2, max_score = $3, absolute_score = $4
+     WHERE id = $5 RETURNING id, course_id, type, title, max_score, absolute_score`,
+    [type, title, maxScore, absoluteScore, assessmentId]
   );
   if (!result.rowCount) return res.status(404).json({ error: 'Assessment not found.' });
   res.json(result.rows[0]);
@@ -275,6 +347,7 @@ router.post('/assessments/:assessmentId/marks', asyncHandler(async (req, res) =>
   }
 
   let saved = 0;
+  const notificationIds = [];
   await db.withTransaction(async (client) => {
     for (const entry of normalized) {
       const existing = await client.query(
@@ -303,7 +376,7 @@ router.post('/assessments/:assessmentId/marks', asyncHandler(async (req, res) =>
           [assessmentId, assessment.course_id, entry.rollNumber]
         );
         if (student.rowCount) {
-          await client.query(
+          const notificationResult = await client.query(
             `INSERT INTO notifications
               (student_roll_number, course_id, assessment_id, old_score, new_score, message)
              SELECT $1, $2, $3, $4, $5, $6
@@ -311,16 +384,31 @@ router.post('/assessments/:assessmentId/marks', asyncHandler(async (req, res) =>
                SELECT 1 FROM notifications
                WHERE student_roll_number = $1 AND assessment_id = $3
                  AND old_score IS NOT DISTINCT FROM $4 AND new_score IS NOT DISTINCT FROM $5
-             )`,
+             )
+             RETURNING id`,
             [entry.rollNumber, assessment.course_id, assessmentId, oldScore, entry.score,
               `${student.rows[0].code} · ${student.rows[0].title} marks changed from ${oldScore ?? 'not released'} to ${entry.score ?? 'not released'}.`]
           );
+          if (notificationResult.rowCount) {
+            notificationIds.push(notificationResult.rows[0].id);
+          } else {
+            const pendingNotification = await client.query(
+              `SELECT id FROM notifications
+               WHERE student_roll_number = $1 AND assessment_id = $2
+                 AND old_score IS NOT DISTINCT FROM $3
+                 AND new_score IS NOT DISTINCT FROM $4
+                 AND status = 'pending'
+               ORDER BY created_at DESC LIMIT 1`,
+              [entry.rollNumber, assessmentId, oldScore, entry.score]
+            );
+            if (pendingNotification.rowCount) notificationIds.push(pendingNotification.rows[0].id);
+          }
         }
       }
       saved += 1;
     }
   });
-  res.json({ saved });
+  res.json({ saved, notification_ids: notificationIds });
 }));
 
 router.get('/notifications', asyncHandler(async (req, res) => {

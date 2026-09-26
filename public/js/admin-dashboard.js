@@ -124,10 +124,24 @@ function renderCoursesTable() {
     .map((c) => `<tr>
       <td class="roll">${escapeHTML(c.code)}</td>
       <td>${escapeHTML(c.name)}</td>
+      <td><span class="course-rule">${courseTotalsLabel(c)}</span></td>
       <td class="score">${escapeHTML(c.student_count)}</td>
       <td><div class="table-actions"><button type="button" class="secondary icon-action edit-course-btn" aria-label="Edit course ${escapeHTML(c.code)}" title="Edit course" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}" data-name="${escapeHTML(c.name)}">&#9998;</button><button type="button" class="danger icon-action delete-course-btn" aria-label="Delete course ${escapeHTML(c.code)}" title="Delete course" data-id="${escapeHTML(c.id)}" data-code="${escapeHTML(c.code)}">&#128465;</button></div></td>
     </tr>`)
-    .join('') || '<tr><td colspan="4" class="empty-state">No courses yet.</td></tr>';
+    .join('') || '<tr><td colspan="5" class="empty-state">No courses yet.</td></tr>';
+}
+
+function courseTotalsLabel(course) {
+  const totals = [
+    ['Quiz', course.quiz_total_abs],
+    ['Assignment', course.assignment_total_abs],
+    ['Lab', course.lab_total_abs],
+    ['CP', course.cp_total_abs],
+    ['Other', course.other_total_abs],
+  ].filter(([, value]) => Number(value) > 0);
+  return totals.length
+    ? totals.map(([label, value]) => `${label} ${escapeHTML(value)} abs`).join(' · ')
+    : 'No assessment totals set yet.';
 }
 
 document.querySelector('#courses-table tbody').addEventListener('click', async (e) => {
@@ -136,7 +150,13 @@ document.querySelector('#courses-table tbody').addEventListener('click', async (
     $('edit-course-id').value = editBtn.dataset.id;
     $('edit_course_code').value = editBtn.dataset.code;
     $('edit_course_name').value = editBtn.dataset.name;
-    $('course-edit-card').style.display = 'block';
+    $('course-edit-modal').hidden = false;
+    document.body.classList.add('modal-open');
+    const course = courses.find((item) => String(item.id) === editBtn.dataset.id);
+    $('edit-course-assessments').innerHTML = Object.entries(assessmentLabels).map(([type, label]) => {
+      const key = `${type}_total_abs`;
+      return `<div class="edit-total-row"><label for="edit-${key}">${label} total abs</label><input id="edit-${key}" class="edit-total-input" data-type="${type}" type="number" min="0" step="0.01" value="${escapeHTML(course?.[key] ?? 0)}" placeholder="0"></div>`;
+    }).join('');
     $('edit_course_name').focus();
     return;
   }
@@ -156,16 +176,37 @@ document.querySelector('#courses-table tbody').addEventListener('click', async (
   }
 });
 
-$('cancel-course-edit').addEventListener('click', () => { $('course-edit-card').style.display = 'none'; });
+document.querySelectorAll('[data-close-course-modal]').forEach((element) => element.addEventListener('click', () => {
+  $('course-edit-modal').hidden = true;
+  document.body.classList.remove('modal-open');
+}));
 $('course-edit-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    await api(`/api/admin/courses/${$('edit-course-id').value}`, { method: 'PATCH', body: JSON.stringify({ code: $('edit_course_code').value.trim(), name: normalizeName($('edit_course_name').value) }) });
-    $('course-edit-card').style.display = 'none';
+    await api(`/api/admin/courses/${$('edit-course-id').value}`, { method: 'PATCH', body: JSON.stringify({
+      code: $('edit_course_code').value.trim(),
+      name: normalizeName($('edit_course_name').value),
+      assessment_totals: Array.from(document.querySelectorAll('#edit-course-assessments .edit-total-input')).map((input) => ({
+        type: input.dataset.type,
+        total_abs: input.value,
+      })),
+    }) });
+    $('course-edit-modal').hidden = true;
+    document.body.classList.remove('modal-open');
     $('course-status').textContent = 'Course updated.';
     await loadCourses();
   } catch (err) { $('course-status').textContent = err.message; }
 });
+
+const assessmentLabels = { quiz: 'Quiz', assignment: 'Assignment', lab: 'Lab', cp: 'CP', other: 'Other' };
+function addCourseAssessmentRow() {
+  const row = document.createElement('div');
+  row.className = 'assessment-row';
+  row.innerHTML = `<select class="course-assessment-type" aria-label="Assessment category"><option value="">Select category</option>${Object.entries(assessmentLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select><input class="course-assessment-total" type="number" min="0" step="0.01" placeholder="Total abs" aria-label="Total absolute marks"><button type="button" class="secondary icon-action remove-assessment-btn" aria-label="Remove assessment category" title="Remove category">&times;</button>`;
+  row.querySelector('.remove-assessment-btn').addEventListener('click', () => row.remove());
+  document.querySelector('#course-assessments .assessment-rows').appendChild(row);
+}
+$('add-course-assessment').addEventListener('click', addCourseAssessmentRow);
 
 $('course-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -174,10 +215,18 @@ $('course-form').addEventListener('submit', async (e) => {
   try {
     await api('/api/admin/courses', {
       method: 'POST',
-      body: JSON.stringify({ code: $('course_code').value.trim(), name: $('course_name').value.trim() }),
+      body: JSON.stringify({
+        code: $('course_code').value.trim(),
+        name: $('course_name').value.trim(),
+        assessment_totals: Array.from(document.querySelectorAll('.assessment-row')).map((row) => ({
+          type: row.querySelector('.course-assessment-type').value,
+          total_abs: row.querySelector('.course-assessment-total').value,
+        })).filter((entry) => entry.type && entry.total_abs),
+      }),
     });
     $('course_code').value = '';
     $('course_name').value = '';
+    document.querySelector('#course-assessments .assessment-rows').innerHTML = '';
     status.textContent = 'Course added.';
     await loadCourses();
   } catch (err) {
@@ -465,6 +514,20 @@ $('marks-save-btn').addEventListener('click', async () => {
       method: 'POST',
       body: JSON.stringify({ marks }),
     });
+    if (result.notification_ids?.length) {
+      const shouldSend = await confirmAction(
+        'Send mark notifications?',
+        `You updated marks for ${result.notification_ids.length} student${result.notification_ids.length === 1 ? '' : 's'}. Send them a notification now?`,
+        'Yes, send'
+      );
+      if (shouldSend) {
+        await Promise.all(result.notification_ids.map((id) => api(`/api/admin/notifications/${id}/approve`, { method: 'POST' })));
+        status.textContent = `Saved ${result.saved} score(s) and sent ${result.notification_ids.length} notification${result.notification_ids.length === 1 ? '' : 's'}.`;
+      } else {
+        status.textContent = `Saved ${result.saved} score(s). Notifications are waiting for approval.`;
+      }
+      return;
+    }
     status.textContent = `Saved ${result.saved} score(s).`;
   } catch (err) {
     status.textContent = err.message;

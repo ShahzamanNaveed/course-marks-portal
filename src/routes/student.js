@@ -39,7 +39,10 @@ router.get(
     );
     if (!enrolled) return res.status(403).json({ error: 'You are not enrolled in this course.' });
 
-    const course = await db.maybeOne('SELECT id, code, name FROM courses WHERE id = $1', [courseId]);
+    const course = await db.maybeOne(
+      `SELECT id, code, name, quiz_total_abs, assignment_total_abs
+       FROM courses WHERE id = $1`, [courseId]
+    );
     if (!course) return res.status(404).json({ error: 'Course not found.' });
 
     const { rows: items } = await db.query(

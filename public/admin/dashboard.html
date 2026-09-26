@@ -28,6 +28,7 @@
       <h2 style="font-size:1.2rem;">Courses</h2>
       <div class="card">
         <h2>Add a course</h2>
+        <p>Choose the assessment categories used in this course and set the total absolute marks for each one.</p>
         <form id="course-form" class="form-grid">
           <div>
             <label for="course_code">Code</label>
@@ -37,21 +38,17 @@
             <label for="course_name">Name</label>
             <input type="text" id="course_name" placeholder="Data Structures and Algorithms" required>
           </div>
+          <div class="assessment-builder" id="course-assessments">
+            <div class="assessment-builder-heading"><label>Assessment totals <span class="hint">optional</span></label><button type="button" class="secondary" id="add-course-assessment">Add category</button></div>
+            <div class="assessment-rows"></div>
+            <small class="hint">For example: total Quiz abs 10, total Lab abs 20. Individual quizzes and labs are added later.</small>
+          </div>
           <div><button type="submit">Add course</button></div>
         </form>
         <div class="status-line" id="course-status"></div>
       </div>
-      <div class="card" id="course-edit-card" style="display:none;">
-        <h2>Edit course</h2>
-        <form id="course-edit-form" class="form-grid">
-          <input type="hidden" id="edit-course-id">
-          <div><label for="edit_course_code">Code</label><input type="text" id="edit_course_code" required></div>
-          <div><label for="edit_course_name">Name</label><input type="text" id="edit_course_name" required></div>
-          <div class="row-actions"><button type="submit">Save changes</button><button type="button" class="secondary" id="cancel-course-edit">Cancel</button></div>
-        </form>
-      </div>
       <table id="courses-table">
-        <thead><tr><th>Code</th><th>Name</th><th class="score">Students</th><th class="actions-column">Actions</th></tr></thead>
+        <thead><tr><th>Code</th><th>Name</th><th>Grading rule</th><th class="score">Students</th><th class="actions-column">Actions</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -96,6 +93,9 @@
             <select id="a_type">
               <option value="assignment">Assignment</option>
               <option value="quiz">Quiz</option>
+              <option value="lab">Lab</option>
+              <option value="cp">CP</option>
+              <option value="other">Other</option>
             </select>
           </div>
           <div>
@@ -115,7 +115,7 @@
         <h2>Edit assessment</h2>
         <form id="assessment-edit-form" class="form-grid">
           <input type="hidden" id="edit-assessment-id">
-          <div><label for="edit_a_type">Type</label><select id="edit_a_type"><option value="assignment">Assignment</option><option value="quiz">Quiz</option></select></div>
+          <div><label for="edit_a_type">Type</label><select id="edit_a_type"><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="lab">Lab</option><option value="cp">CP</option><option value="other">Other</option></select></div>
           <div><label for="edit_a_title">Title</label><input type="text" id="edit_a_title" required></div>
           <div><label for="edit_a_max">Max score</label><input type="number" id="edit_a_max" min="0.01" step="any" required></div>
           <div class="row-actions"><button type="submit">Save changes</button><button type="button" class="secondary" id="cancel-assessment-edit">Cancel</button></div>
@@ -123,7 +123,7 @@
       </div>
 
       <table id="assessments-table">
-        <thead><tr><th>Title</th><th>Type</th><th class="score">Max score</th><th class="actions-column">Actions</th></tr></thead>
+        <thead><tr><th>Title</th><th>Type</th><th class="score">Marks</th><th class="actions-column">Actions</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -173,6 +173,19 @@
 
   </div>
 </div>
+<div class="course-modal" id="course-edit-modal" hidden>
+  <div class="course-modal-backdrop" data-close-course-modal></div>
+  <section class="course-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="course-edit-title">
+    <div class="query-editor-heading"><div><span class="section-eyebrow">Course settings</span><h3 id="course-edit-title">Edit course</h3></div><button type="button" class="modal-close" data-close-course-modal aria-label="Close course form">&times;</button></div>
+    <form id="course-edit-form" class="form-grid">
+      <input type="hidden" id="edit-course-id">
+      <div><label for="edit_course_code">Code</label><input type="text" id="edit_course_code" required></div>
+      <div><label for="edit_course_name">Name</label><input type="text" id="edit_course_name" required></div>
+      <div class="edit-assessments"><label>Assessment absolute totals</label><div id="edit-course-assessments" class="edit-assessment-list"><span class="hint">Loading totals...</span></div></div>
+      <div class="row-actions"><button type="submit">Save changes</button><button type="button" class="secondary" data-close-course-modal>Cancel</button></div>
+    </form>
+  </section>
+</div>
 <div class="confirm-modal" id="confirm-modal" hidden>
   <div class="confirm-modal-backdrop" data-close-confirm></div>
   <section class="confirm-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
@@ -193,6 +206,6 @@
     </form>
   </section>
 </div>
-<script src="/js/admin-dashboard.js?v=3"></script>
+<script src="/js/admin-dashboard.js?v=8"></script>
 </body>
 </html>

@@ -100,36 +100,82 @@ function markCard(item) {
   const score = isGraded
     ? `<strong>${escapeHTML(formatNumber(item.score))}</strong><span>/ ${escapeHTML(formatNumber(item.max_score))}</span>`
     : '<strong class="pending-score">Pending</strong>';
+  const absoluteScore = isGraded && item.isCounted !== false
+    ? `<div class="mark-absolute">${escapeHTML(formatNumber(item.absoluteEarned))} / ${escapeHTML(formatNumber(item.absoluteMaximum))} abs</div>`
+    : item.isCounted === false ? '<div class="mark-absolute">Not counted</div>' : '';
+  const ratio = isGraded ? `<div class="mark-ratio">${escapeHTML(formatNumber(percentage))}% ratio</div>` : '';
   const progress = percentage === null
     ? '<div class="mark-progress is-pending" aria-hidden="true"><span></span></div>'
     : `<div class="mark-progress" role="progressbar" aria-label="${escapeHTML(item.title)} score" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(percentage)}"><span style="width:${Math.max(0, Math.min(100, percentage))}%"></span></div>`;
 
   return `
-    <article class="mark-card" data-mark-type="${escapeHTML(item.type)}">
+    <article class="mark-card ${item.isCounted === false ? 'is-not-counted' : ''}" data-mark-type="${escapeHTML(item.type)}">
       <div class="mark-main">
-        <span class="badge ${item.type === 'quiz' ? 'badge-quiz' : ''}">${label}</span>
+        <span class="badge ${item.type === 'quiz' ? 'badge-quiz' : ''}">${item.isCounted === false ? 'Not counted' : label}</span>
         <h3>${escapeHTML(item.title)}</h3>
       </div>
       <div class="mark-result ${isGraded ? '' : 'is-pending'}">
         <div class="mark-score">${score}</div>
-        ${isGraded ? `<div class="mark-percentage">${escapeHTML(formatPercent(percentage))}</div>` : '<div class="mark-percentage">Awaiting marks</div>'}
+        ${ratio}
+        ${absoluteScore}
       </div>
       ${progress}
     </article>
   `;
 }
 
-function renderMarks(course, items) {
+function bestOf(items, limit) {
+  const graded = items.filter((item) => item.score !== null && item.score !== undefined);
+  const ranked = [...graded].sort((first, second) => {
+    const firstPercent = Number(first.max_score) > 0 ? Number(first.score) / Number(first.max_score) : 0;
+    const secondPercent = Number(second.max_score) > 0 ? Number(second.score) / Number(second.max_score) : 0;
+    return secondPercent - firstPercent;
+  });
+  const selected = new Set((Number(limit) > 0 ? ranked.slice(0, Number(limit)) : ranked).map((item) => item.id));
+  return { graded, selected };
+}
+
+function categoryAbsolute(items, selected, totalAbsolute) {
+  const counted = items.filter((item) => selected.has(item.id));
+  const assigned = counted.length ? Number(totalAbsolute) / counted.length : 0;
+  const earned = counted.reduce((sum, item) => sum + (Number(item.score) / Number(item.max_score)) * assigned, 0);
+  return { earned, available: counted.length ? Number(totalAbsolute) : 0, assigned };
+}
+
+function bestOptions(count, selected) {
+  return [`<option value="0"${selected === 0 ? ' selected' : ''}>All (${count})</option>`, ...Array.from({ length: count }, (_, index) => {
+    const value = index + 1;
+    return `<option value="${value}"${selected === value ? ' selected' : ''}>Best ${value}</option>`;
+  })].join('');
+}
+
+function renderMarks(course, items, choices = {}) {
   if (!items.length) {
     renderEmptyCourse(course);
     return;
   }
 
+  const quizItems = items.filter((item) => item.type === 'quiz');
+  const assignmentItems = items.filter((item) => item.type === 'assignment');
+  const quizChoice = choices.quiz ?? 0;
+  const assignmentChoice = choices.assignment ?? 0;
+  const quizBest = bestOf(quizItems, quizChoice);
+  const assignmentBest = bestOf(assignmentItems, assignmentChoice);
+  const selectedIds = new Set([...quizBest.selected, ...assignmentBest.selected]);
+  const quizAssigned = quizBest.selected.size ? Number(course.quiz_total_abs) / quizBest.selected.size : 0;
+  const assignmentAssigned = assignmentBest.selected.size ? Number(course.assignment_total_abs) / assignmentBest.selected.size : 0;
+  const countedItems = items.map((item) => ({
+    ...item,
+    isCounted: item.score === null || item.score === undefined || selectedIds.has(item.id),
+    absoluteMaximum: item.type === 'quiz' ? quizAssigned : assignmentAssigned,
+    absoluteEarned: item.score === null || item.score === undefined ? null : (Number(item.score) / Number(item.max_score)) * (item.type === 'quiz' ? quizAssigned : assignmentAssigned),
+  }));
   const graded = items.filter((item) => item.score !== null && item.score !== undefined);
   const pending = items.length - graded.length;
-  const earnedPoints = graded.reduce((sum, item) => sum + Number(item.score), 0);
-  const availablePoints = graded.reduce((sum, item) => sum + Number(item.max_score), 0);
-  const overall = availablePoints > 0 ? (earnedPoints / availablePoints) * 100 : null;
+  const quizResult = categoryAbsolute(quizItems, quizBest.selected, course.quiz_total_abs);
+  const assignmentResult = categoryAbsolute(assignmentItems, assignmentBest.selected, course.assignment_total_abs);
+  const earnedAbsolute = quizResult.earned + assignmentResult.earned;
+  const availableAbsolute = quizResult.available + assignmentResult.available;
   const assignments = items.filter((item) => item.type === 'assignment').length;
   const quizzes = items.filter((item) => item.type === 'quiz').length;
 
@@ -147,9 +193,9 @@ function renderMarks(course, items) {
 
       <div class="summary-grid" aria-label="Course summary">
         <article class="summary-card summary-primary">
-          <span class="summary-label">Current score</span>
-          <strong>${overall === null ? '—' : escapeHTML(formatPercent(overall))}</strong>
-          <small>${overall === null ? 'No graded work yet' : `${escapeHTML(formatNumber(earnedPoints))} of ${escapeHTML(formatNumber(availablePoints))} graded points`}</small>
+          <span class="summary-label">Total absolute score</span>
+          <strong>${graded.length === 0 ? '—' : `${escapeHTML(formatNumber(earnedAbsolute))} / ${escapeHTML(formatNumber(availableAbsolute))}`}</strong>
+          <small>${graded.length === 0 ? 'No graded work yet' : 'Based on your selected best-of options'}</small>
         </article>
         <article class="summary-card">
           <span class="summary-label">Marks released</span>
@@ -161,6 +207,12 @@ function renderMarks(course, items) {
           <strong>${pending}</strong>
           <small>${pending === 1 ? 'item is still pending' : 'items are still pending'}</small>
         </article>
+      </div>
+
+      <div class="grading-rule" aria-label="Course grading rule">
+        <div><span class="section-eyebrow">Absolute grading</span><strong>Quizzes ${escapeHTML(formatNumber(course.quiz_total_abs))} abs · Assignments ${escapeHTML(formatNumber(course.assignment_total_abs))} abs</strong></div>
+        <label class="grading-rule-detail" for="best-quizzes"><span>Count best quizzes</span><select id="best-quizzes">${bestOptions(quizBest.graded.length, quizChoice)}</select><small>${quizBest.selected.size} counted</small></label>
+        <label class="grading-rule-detail" for="best-assignments"><span>Count best assignments</span><select id="best-assignments">${bestOptions(assignmentBest.graded.length, assignmentChoice)}</select><small>${assignmentBest.selected.size} counted</small></label>
       </div>
 
       <section class="marks-section" aria-labelledby="marks-heading">
@@ -177,7 +229,7 @@ function renderMarks(course, items) {
         </div>
         <p class="filter-result" id="filter-result">Showing all ${items.length} items</p>
         <div class="marks-list">
-          ${items.map(markCard).join('')}
+          ${countedItems.map(markCard).join('')}
         </div>
         <div class="filtered-empty" hidden>No items match this filter.</div>
       </section>
@@ -185,6 +237,8 @@ function renderMarks(course, items) {
   `;
 
   bindRefreshButton();
+  $('best-quizzes').addEventListener('change', () => renderMarks(course, items, { quiz: Number($('best-quizzes').value), assignment: Number($('best-assignments').value) }));
+  $('best-assignments').addEventListener('change', () => renderMarks(course, items, { quiz: Number($('best-quizzes').value), assignment: Number($('best-assignments').value) }));
   document.querySelectorAll('.mark-filter').forEach((button) => {
     button.addEventListener('click', () => applyFilter(button.dataset.filter));
   });
